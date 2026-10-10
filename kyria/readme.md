@@ -210,7 +210,7 @@ halves. Keep the Vial UID and physical unlock combination unchanged.
 
 - **Keys/macros:** edit through Vial, export `layout.vil`, review, commit, push.
   Restore that export on the other half if either half can be the USB master.
-- **Firmware or built-in lighting:** pull this repo and run `./flash.sh`
+- **Firmware or LED hardware mapping:** pull this repo and run `./flash.sh`
   to download/reuse Vial-QMK, rebuild, flash, and restore both halves.
 - **Host service/applet:** commit and push this repo, put the new full SHA in
   `/etc/nixos/common/kyria.nix`, rebuild NixOS, and restart the two user units.
