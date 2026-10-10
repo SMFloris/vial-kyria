@@ -66,6 +66,8 @@ with open(sys.argv[1]) as source:
     layout = json.load(source)
 if layout.get('uid') != 11996955115473074447 or len(layout.get('layout', [])) != 8:
     raise SystemExit('Layout must match the Kyria Vial UID and contain eight layers.')
+if 'alt_repeat_key' not in layout:
+    raise SystemExit('Layout is missing alt_repeat_key, required by the pinned Vial-QMK. Use the current layout.vil or export a complete layout from Vial before flashing.')
 PY
 
 exec {flash_lock}>"${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/kyria-flash-${UID}.lock"

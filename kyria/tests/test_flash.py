@@ -84,6 +84,10 @@ class FlashTests(unittest.TestCase):
                 'Model: Raspberry Pi RP2\nBoard-ID: RPI-RP2\n')
             (root / 'layout.vil').write_bytes(
                 (ROOT / 'rev3/keymaps/floris/layout.vil').read_bytes())
+            if failure == 'missing-alt-repeat':
+                layout = json.loads((root / 'layout.vil').read_text())
+                del layout['alt_repeat_key']
+                (root / 'layout.vil').write_text(json.dumps(layout))
             block = bytearray(512)
             struct.pack_into('<III', block, 0, 0x0a324655, 0x9e5d5157, 0x2000)
             struct.pack_into('<I', block, 28, 0xe48bff56)
@@ -113,7 +117,7 @@ class FlashTests(unittest.TestCase):
                                         env=env, timeout=25)
             self.assertFalse(list((root / 'cache/kyria/vial-qmk').glob('.download.*')),
                              'Partial downloads must be removed')
-            events = (root / 'events').read_text().splitlines()
+            events = (root / 'events').read_text().splitlines() if (root / 'events').exists() else []
             self.assertFalse(list(root.glob('kyria-flash.*')), 'Temporary readback must be removed')
             return result, events
 
@@ -132,6 +136,12 @@ class FlashTests(unittest.TestCase):
                 result, events = self.run_walkthrough(failure=failure, automatic_build=True)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse(any(e.startswith(('make ', 'vitaly ', 'cp ', 'systemctl ')) for e in events))
+
+    def test_old_layout_missing_alt_repeat_stops_before_hardware(self):
+        result, events = self.run_walkthrough(failure='missing-alt-repeat')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Layout is missing alt_repeat_key', result.stderr)
+        self.assertEqual(events, [])
 
     def test_flash_both_before_restore_and_restart_service(self):
         result, events = self.run_walkthrough()
