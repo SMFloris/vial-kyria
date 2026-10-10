@@ -14,7 +14,14 @@ let
   qmk = pkgs.writeShellScriptBin "qmk" ''
     exec ${python}/bin/python3 ${entry} "$@"
   '';
+  vitaly = pkgs.callPackage ./nix/vitaly.nix { };
+  flash = pkgs.writeShellScriptBin "kyria-flash" ''
+    exec ${pkgs.bash}/bin/bash ${pkgs.lib.escapeShellArg (toString ./flash.sh)} "$@"
+  '';
 in pkgs.mkShell {
-  packages = [ qmk python pkgs.gcc-arm-embedded pkgs.gnumake pkgs.git pkgs.stdenv.cc ];
+  packages = [
+    qmk python vitaly flash pkgs.bash pkgs.coreutils pkgs.util-linux
+    pkgs.udisks2 pkgs.systemd pkgs.gcc-arm-embedded pkgs.gnumake pkgs.git pkgs.stdenv.cc
+  ];
   QMK_BIN = "${qmk}/bin/qmk";
 }

@@ -16,7 +16,7 @@ The firmware build target is `splitkb/kyria/rev3:floris CONVERT_TO=liatris`.
 | `rev3/`, `kyria.c`, `info.json`, `rules.mk` | Required QMK hardware definitions and callbacks. |
 | `host/` | Python service, physical LED map, and default colors. |
 | `nix/`, `applet/` | NixOS module and COSMIC applet. |
-| `tests/`, `shell.nix` | Validation and Nix firmware build tools. |
+| `flash.sh`, `shell.nix`, `tests/` | Guided flashing, Nix tools, and validation. |
 
 Older revisions and alternative keymaps have been removed; Git history retains them.
 
@@ -55,53 +55,52 @@ use the system pin by appending
 to the `nix-shell` command. On another OS, install the checkout's QMK toolchain
 and `requirements.txt`, then run the same Make command.
 
-## Back up, flash, and restore
+## Guided build, flash, and restore
 
-Install the Vial CLI [Vitaly](https://github.com/bskaplou/vitaly/releases)
-from its Linux release archive and put the extracted `vitaly` executable on
-your PATH. The tested CLI version is 0.1.32. Its `-i` option takes the decimal
-USB product ID: `53060`.
-Use a fresh export before each firmware update; `layout.vil` is the checked-in
-snapshot, not a substitute for changes made since that snapshot.
+From `kyria/`, enter the shell and run the walkthrough:
 
 ```sh
-systemctl --user stop kyria-layer.service # If installed.
-vitaly -i 53060 devices
-vitaly -i 53060 save -f "$HOME/kyria-before-flash.vil"
-vitaly -i 53060 lock -u
+nix-shell shell.nix
+./flash.sh --qmk-home "$QMK_HOME"
 ```
 
-While unlock waits, hold **T + Y** (the innermost top-row letter keys) together
-for at least five seconds. Check that the CLI reports the keyboard unlocked.
-Vitaly can return exit code 0 on failure, so read its output.
+The shell includes the pinned Vitaly 0.1.32 CLI and firmware build tools.
+`QMK_HOME` can also be set in the environment; otherwise the script asks for
+its path. The checkout must contain this repository's keyboard definition as
+shown above. From the QMK checkout, the same walkthrough is `kyria-flash`.
 
-1. Enter the bootloader with `vitaly -i 53060 bootload`, or double-tap the
-   connected half's reset button. Liatris appears as an `RPI-RP2` USB drive.
-2. Mount that drive and copy the compiled UF2 onto it. For example, after
-   checking its actual mount path:
-   ```sh
-   cp "$QMK_HOME/splitkb_kyria_rev3_floris_liatris.uf2" /run/media/"$USER"/RPI-RP2/NEW.UF2
-   sync
-   ```
-   The drive disconnects and the keyboard restarts.
-3. Unlock again with `vitaly -i 53060 lock -u` and T + Y. Restore the fresh
-   backup, or the repository snapshot for the saved personal layout:
-   ```sh
-   vitaly -i 53060 load -f "$HOME/kyria-before-flash.vil"
-   # Alternatively: vitaly -i 53060 load -f "$KYRIA_REPO/kyria/rev3/keymaps/floris/layout.vil"
-   vitaly -i 53060 save -f "$HOME/kyria-after-flash.vil"
-   ```
-   Compare the exported JSON with the backup before continuing.
-4. Move USB to the other half, leaving the interconnect attached. Repeat the
-   bootloader, copy, unlock, restore, and readback steps with the **same UF2
-   and layout**. Both halves need the host-lighting firmware.
-5. Reconnect normally and start `systemctl --user start kyria-layer.service`
-   if the NixOS module is installed. Check typing, both encoders, layers, and
-   lighting on both halves.
+The script walks through these steps:
 
-`make splitkb/kyria/rev3:floris:flash CONVERT_TO=liatris` is also available in
-the build shell; it builds and waits for a bootloader. Back up first and repeat
-for both halves, then restore the Vial layout as above.
+1. Pause the lighting service if it is running, validate the saved layout,
+   and build rev3/floris for Liatris.
+2. Ask which half is your main USB half (left or right), then ask you to
+   close Vial and connect that half by USB. Double-tap that
+   half's reset button. The script finds and mounts its `RPI-RP2` drive,
+   checks the bootloader identity, and copies the UF2.
+3. Ask you to move USB to the other half and repeat the reset/flash.
+   Leave the interconnect attached throughout; connect only one USB half.
+4. Restore the other half, then ask you to move USB back and restore your
+   main half. The walkthrough finishes with USB on your main half. For each unlock, hold **T + Y** until the CLI reports unlocked
+   (about five seconds). Each restore is followed by a full JSON readback
+   comparison.
+5. Restart the lighting service if it was running and both restores passed.
+   Check typing, encoders, layer switching, and lighting on both halves.
+
+Both halves are flashed before Vial unlock so they share the same split
+protocol. Vial commands run sequentially with a 90-second timeout; reported
+errors stop the walkthrough even if the CLI exits successfully. An interrupted
+or failed restoration leaves the lighting service paused; finish restoring,
+then run `systemctl --user start kyria-layer.service`.
+
+**No backups are made.** The script replaces both halves' layouts with
+`rev3/keymaps/floris/layout.vil`. Temporary exports used for verification are
+deleted on exit. To use an existing UF2 or a different Vitaly-exported layout:
+
+```sh
+./flash.sh --firmware "$QMK_HOME/splitkb_kyria_rev3_floris_liatris.uf2"
+./flash.sh --qmk-home "$QMK_HOME" --layout /path/to/layout.vil
+./flash.sh --help
+```
 
 ## Edit the layout without flashing
 
@@ -200,7 +199,7 @@ halves. Keep the Vial UID and physical unlock combination unchanged.
 - **Keys/macros:** edit through Vial, export `layout.vil`, review, commit, push.
   Restore that export on the other half if either half can be the USB master.
 - **Firmware or built-in lighting:** pull this repo, rebuild in the linked
-  Vial-QMK checkout, back up, flash both halves, and restore the live layout.
+  Vial-QMK checkout, and run `./flash.sh` to flash and restore both halves.
 - **Host service/applet:** commit and push this repo, put the new full SHA in
   `/etc/nixos/common/kyria.nix`, rebuild NixOS, and restart the two user units.
   Keep the host protocol compatible with the installed firmware.

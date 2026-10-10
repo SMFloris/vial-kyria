@@ -1,0 +1,108 @@
+"""Exercise the flash walkthrough with fake USB/HID tools; never access hardware."""
+import json
+import os
+from pathlib import Path
+import struct
+import subprocess
+import tempfile
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+
+FAKE = r'''#!/usr/bin/env python3
+import json, os, pathlib, shutil, sys
+name = pathlib.Path(sys.argv[0]).name
+root = pathlib.Path(os.environ['FLASH_TEST_ROOT'])
+args = sys.argv[1:]
+with (root / 'events').open('a') as log:
+    log.write(name + ' ' + ' '.join(args) + '\n')
+if name == 'systemctl':
+    if 'is-active' in args: sys.exit(0)
+elif name == 'lsblk':
+    drives = [{'name': '/dev/fake', 'label': 'RPI-RP2'}]
+    if os.environ.get('FLASH_TEST_FAILURE') == 'ambiguous': drives *= 2
+    print(json.dumps({'blockdevices': drives}))
+elif name == 'findmnt':
+    print(json.dumps({'filesystems': [{'target': str(root / 'mount')}]}))
+elif name == 'cp':
+    shutil.copyfile(args[-2], args[-1])
+elif name == 'vitaly':
+    action = args[2]
+    if action == 'devices': print('Path: /dev/hidrawFAKE')
+    elif action == 'lock': print('Device is locked: false')
+    elif action == 'load' and os.environ.get('FLASH_TEST_FAILURE') == 'load':
+        print('Error: failed to load layout')  # Real CLI can exit 0 on error.
+    elif action == 'save':
+        layout = json.loads((root / 'layout.vil').read_text())
+        if os.environ.get('FLASH_TEST_FAILURE') == 'readback': layout['layout'][0] = []
+        pathlib.Path(args[-1]).write_text(json.dumps(layout))
+'''
+
+
+class FlashTests(unittest.TestCase):
+    def run_walkthrough(self, failure='', main_half='left'):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'bin').mkdir()
+            (root / 'mount').mkdir()
+            (root / 'mount/INFO_UF2.TXT').write_text(
+                'Model: Raspberry Pi RP2\nBoard-ID: RPI-RP2\n')
+            (root / 'layout.vil').write_bytes(
+                (ROOT / 'rev3/keymaps/floris/layout.vil').read_bytes())
+            block = bytearray(512)
+            struct.pack_into('<III', block, 0, 0x0a324655, 0x9e5d5157, 0x2000)
+            struct.pack_into('<I', block, 28, 0xe48bff56)
+            struct.pack_into('<I', block, 508, 0x0ab16f30)
+            (root / 'firmware.uf2').write_bytes(block)
+            for command in ('vitaly', 'lsblk', 'findmnt', 'udisksctl', 'cp', 'sync', 'systemctl'):
+                executable = root / 'bin' / command
+                executable.write_text(FAKE)
+                executable.chmod(0o755)
+            env = dict(os.environ, PATH=f'{root / "bin"}:{os.environ["PATH"]}',
+                       FLASH_TEST_ROOT=str(root), FLASH_TEST_FAILURE=failure,
+                       XDG_RUNTIME_DIR=str(root), TMPDIR=str(root))
+            result = subprocess.run(
+                ['bash', str(ROOT / 'flash.sh'), '--firmware', str(root / 'firmware.uf2'),
+                 '--layout', str(root / 'layout.vil')], input=main_half + '\n' + '\n' * 6,
+                text=True, capture_output=True, env=env, timeout=15)
+            events = (root / 'events').read_text().splitlines()
+            self.assertFalse(list(root.glob('kyria-flash.*')), 'Temporary readback must be removed')
+            return result, events
+
+    def test_flash_both_before_restore_and_restart_service(self):
+        result, events = self.run_walkthrough()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        flash = [i for i, event in enumerate(events) if event.startswith('cp ')]
+        vial = [event for event in events if event.startswith('vitaly ')]
+        self.assertEqual(len(flash), 2)
+        self.assertLess(flash[-1], next(i for i, e in enumerate(events) if e.startswith('vitaly ')))
+        self.assertEqual([e.split()[3] for e in vial], ['devices', 'lock', 'load', 'save'] * 2)
+        self.assertTrue(events[-1].startswith('systemctl --user start'))
+
+    def test_right_main_half_finishes_on_right(self):
+        result, events = self.run_walkthrough(main_half='right')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertLess(result.stdout.index('Flashing right (main)'), result.stdout.index('Flashing left'))
+        self.assertIn('Move USB back to the right MAIN half', result.stdout)
+        self.assertIn('USB should be connected to the right (main) half', result.stdout)
+
+    def test_exit_zero_vial_error_stops_without_restart(self):
+        result, events = self.run_walkthrough('load')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Vitaly reported a failure', result.stderr)
+        self.assertFalse(any(' save ' in e or '--user start' in e for e in events))
+
+    def test_mismatched_readback_stops_without_restart(self):
+        result, events = self.run_walkthrough('readback')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Layout verification failed', result.stderr)
+        self.assertFalse(any('--user start' in e for e in events))
+
+    def test_multiple_bootloaders_never_copy_firmware(self):
+        result, events = self.run_walkthrough('ambiguous')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(any(e.startswith(('cp ', 'vitaly ')) for e in events))
+
+
+if __name__ == '__main__':
+    unittest.main()
