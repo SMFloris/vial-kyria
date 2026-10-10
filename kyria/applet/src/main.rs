@@ -13,29 +13,36 @@ struct Status {
     connected: bool,
     layer: Option<u8>,
     #[serde(default)]
-    name: String,
+    name: Option<String>,
 }
 
-fn label(status: Status) -> String {
+#[derive(Debug, PartialEq)]
+enum Indicator {
+    Offline,
+    Number(u8),
+    Named(String),
+}
+
+fn indicator(status: Status) -> Indicator {
     match (status.connected, status.layer) {
         (true, Some(layer @ 0..=7)) => {
-            let name: String = status
-                .name
+            let name: String = status.name.unwrap_or_default()
                 .chars()
                 .filter(|c| !c.is_control())
                 .take(24)
                 .collect();
-            if name.is_empty() {
-                format!("L{layer}")
+            let number = layer + 1;
+            if name.trim().is_empty() {
+                Indicator::Number(number)
             } else {
-                format!("L{layer} · {name}")
+                Indicator::Named(format!("{number}: {}", name.trim()))
             }
         }
-        _ => "Kyria offline".into(),
+        _ => Indicator::Offline,
     }
 }
 
-fn read_label(path: &std::path::Path) -> String {
+fn read_indicator(path: &std::path::Path) -> Indicator {
     let fresh = std::fs::metadata(path)
         .and_then(|m| m.modified())
         .ok()
@@ -44,12 +51,23 @@ fn read_label(path: &std::path::Path) -> String {
     if fresh {
         if let Ok(data) = std::fs::read(path) {
             if let Ok(status) = serde_json::from_slice(&data) {
-                return label(status);
+                return indicator(status);
             }
         }
     }
-    "Kyria offline".into()
+    Indicator::Offline
 }
+
+const NUMBER_ICONS: [&[u8]; 8] = [
+    include_bytes!("../assets/layer-1-symbolic.svg"),
+    include_bytes!("../assets/layer-2-symbolic.svg"),
+    include_bytes!("../assets/layer-3-symbolic.svg"),
+    include_bytes!("../assets/layer-4-symbolic.svg"),
+    include_bytes!("../assets/layer-5-symbolic.svg"),
+    include_bytes!("../assets/layer-6-symbolic.svg"),
+    include_bytes!("../assets/layer-7-symbolic.svg"),
+    include_bytes!("../assets/layer-8-symbolic.svg"),
+];
 
 fn add_to_wings(wings: &mut Wings) -> bool {
     if wings.0.iter().chain(&wings.1).any(|id| id == APP_ID) {
@@ -79,7 +97,7 @@ fn install_panel(panel: &str) -> Result<(), Box<dyn std::error::Error>> {
 struct App {
     core: cosmic::Core,
     path: PathBuf,
-    label: String,
+    indicator: Indicator,
 }
 
 #[derive(Debug, Clone)]
@@ -100,20 +118,29 @@ impl cosmic::Application for App {
         &mut self.core
     }
     fn init(core: cosmic::Core, path: PathBuf) -> (Self, Task<cosmic::Action<Message>>) {
-        let label = read_label(&path);
-        (Self { core, path, label }, Task::none())
+        let indicator = read_indicator(&path);
+        (Self { core, path, indicator }, Task::none())
     }
     fn view(&self) -> Element<'_, Message> {
         let padding = self.core.applet.suggested_padding(true);
-        cosmic::widget::container(self.core.applet.text(&self.label))
-            .padding([padding.0 as u16, padding.1 as u16])
-            .into()
+        let size = self.core.applet.suggested_size(true).0;
+        let content: Element<'_, Message> = match &self.indicator {
+            Indicator::Named(label) => self.core.applet.text(label.as_str()).into(),
+            Indicator::Number(number) => cosmic::widget::icon::from_svg_bytes(
+                NUMBER_ICONS[usize::from(*number - 1)],
+            ).symbolic(true).icon().size(size).into(),
+            Indicator::Offline => cosmic::widget::icon::from_name("input-keyboard-symbolic")
+                .size(size).icon().into(),
+        };
+        let content = cosmic::widget::container(content)
+            .padding([padding.0 as u16, padding.1 as u16]);
+        self.core.applet.autosize_window(content).into()
     }
     fn subscription(&self) -> Subscription<Message> {
         time::every(Duration::from_millis(100)).map(|_| Message::Tick)
     }
     fn update(&mut self, _: Message) -> Task<cosmic::Action<Message>> {
-        self.label = read_label(&self.path);
+        self.indicator = read_indicator(&self.path);
         Task::none()
     }
     fn style(&self) -> Option<cosmic::iced::theme::Style> {
@@ -144,13 +171,17 @@ mod tests {
         for (json, expected) in [
             (
                 r#"{"connected":true,"layer":3,"name":"Navigation"}"#,
-                "L3 · Navigation",
+                Indicator::Named("4: Navigation".into()),
             ),
-            (r#"{"connected":false,"layer":null}"#, "Kyria offline"),
-            (r#"{"connected":true,"layer":8}"#, "Kyria offline"),
-            (r#"{"connected":true,"layer":0,"name":""}"#, "L0"),
+            (r#"{"connected":false,"layer":null}"#, Indicator::Offline),
+            (r#"{"connected":true,"layer":8}"#, Indicator::Offline),
+            (r#"{"connected":true,"layer":0,"name":""}"#, Indicator::Number(1)),
+            (r#"{"connected":true,"layer":7}"#, Indicator::Number(8)),
+            (r#"{"connected":true,"layer":1,"name":null}"#, Indicator::Number(2)),
+            (r#"{"connected":true,"layer":2,"name":"  \n  "}"#, Indicator::Number(3)),
+            (r#"{"connected":true,"layer":0,"name":"Typing\n"}"#, Indicator::Named("1: Typing".into())),
         ] {
-            assert_eq!(label(serde_json::from_str(json).unwrap()), expected);
+            assert_eq!(indicator(serde_json::from_str(json).unwrap()), expected);
         }
     }
     #[test]
@@ -179,18 +210,18 @@ mod tests {
     #[test]
     fn missing_or_invalid_status_is_offline() {
         let path = std::env::temp_dir().join(format!("kyria-applet-test-{}", std::process::id()));
-        assert_eq!(read_label(&path), "Kyria offline");
+        assert_eq!(read_indicator(&path), Indicator::Offline);
         std::fs::write(&path, b"invalid").unwrap();
-        assert_eq!(read_label(&path), "Kyria offline");
+        assert_eq!(read_indicator(&path), Indicator::Offline);
         std::fs::write(&path, br#"{"connected":true,"layer":2,"name":"COSMIC"}"#).unwrap();
-        assert_eq!(read_label(&path), "L2 · COSMIC");
+        assert_eq!(read_indicator(&path), Indicator::Named("3: COSMIC".into()));
         let file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
         file.set_times(
             std::fs::FileTimes::new()
                 .set_modified(std::time::SystemTime::now() - Duration::from_secs(6)),
         )
         .unwrap();
-        assert_eq!(read_label(&path), "Kyria offline");
+        assert_eq!(read_indicator(&path), Indicator::Offline);
         std::fs::remove_file(path).unwrap();
     }
 }

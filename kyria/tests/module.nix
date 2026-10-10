@@ -8,6 +8,7 @@ let
           enable = true;
           user = "flow";
           applet.enable = true;
+          layers."3".name = "Navigation";
           layers."2".underglow.color = "#123456";
           layers."2".keys.H.brightness = 7;
         };
@@ -17,6 +18,8 @@ let
   };
   cfg = evaluated.config.services.kyria-layer;
 in
+assert cfg.layers."0".name == null;
+assert cfg.layers."3".name == "Navigation";
 assert cfg.layers."1".underglow.color == "#ff9600";
 assert cfg.layers."2".keys.H.color == "#92dce5";
 assert cfg.layers."2".keys.H.brightness == 7;

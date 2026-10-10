@@ -181,8 +181,12 @@ Layer 2 also has Z fullscreen, X maximize, C horizontal, V vertical, B stacking,
 Tab sticky, and right-top outer key floating (`Super+Space`).
 
 The service polls actual layer state every 50 ms and writes an atomic status
-file at `$XDG_RUNTIME_DIR/kyria-layer.json`. The applet shows `L3 · Navigation`,
-or `Kyria offline` for disconnected, missing, or stale status. Stop the service
+file at `$XDG_RUNTIME_DIR/kyria-layer.json`. The applet uses one-based display
+numbers: firmware layer 0 is shown as 1,
+and layer 7 as 8. Unnamed layers show a numbered keycap icon. Set
+`layers."3".name = "Navigation"` to show `4: Navigation`; omit `name` or set
+it to `null` for just the icon. Lighting configuration indices remain 0–7.
+A keyboard icon means disconnected, missing, or stale status. Stop the service
 to return to built-in lighting; a crash or disconnect restores firmware
 lighting within 1.5 seconds. Host colors stay in RAM and synchronize to both
 halves. Keep the Vial UID and physical unlock combination unchanged.

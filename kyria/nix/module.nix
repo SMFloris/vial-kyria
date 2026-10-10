@@ -18,12 +18,12 @@ let
       };
     };
   };
-  layerType = lib.types.submodule ({ name, ... }: {
+  layerType = lib.types.submodule {
     options = {
       name = lib.mkOption {
-        type = lib.types.str;
-        default = "Layer ${name}";
-        description = "Layer name written to the status file.";
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Optional layer name. Null shows a numbered icon; a name shows number: name (1–8).";
       };
       keys = lib.mkOption {
         type = lib.types.attrsOf styleType;
@@ -40,7 +40,7 @@ let
         description = "Color and brightness of all twelve underglow LEDs.";
       };
     };
-  });
+  };
   settings = pkgs.writeText "kyria-layer.json" (builtins.toJSON {
     inherit (cfg) layers vendorId productId pollIntervalMs;
   });
@@ -120,7 +120,6 @@ in {
 
   config = lib.mkIf cfg.enable {
     services.kyria-layer.layers = lib.mapAttrs (_: scheme: {
-      name = lib.mkDefault scheme.name;
       keys = lib.mapAttrs (_: style: {
         color = lib.mkDefault style.color;
         brightness = lib.mkDefault style.brightness;

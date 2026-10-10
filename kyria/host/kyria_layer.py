@@ -211,7 +211,7 @@ def run(config, led_map, status_path):
                     last_heartbeat = now
                 status.update({
                     "connected": True,
-                    "name": config["layers"].get(str(layer), {}).get("name", f"Layer {layer}"),
+                    "name": config["layers"].get(str(layer), {}).get("name"),
                     "device": keyboard.path,
                     "updatedAt": int(time.time()),
                 })
