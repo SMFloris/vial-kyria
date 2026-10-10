@@ -1,0 +1,13 @@
+#pragma once
+#include <stdbool.h>
+#include <stdint.h>
+#define RGB_MATRIX_LED_COUNT 62
+#define KYRIA_HOST_LIGHTING 42
+extern uint32_t layer_state;
+extern uint32_t default_layer_state;
+uint32_t timer_read32(void);
+uint32_t timer_elapsed32(uint32_t start);
+uint8_t get_highest_layer(uint32_t state);
+bool is_keyboard_master(void);
+uint8_t rgb_matrix_get_val(void);
+void rgb_matrix_set_color(int led, uint8_t red, uint8_t green, uint8_t blue);

@@ -1,0 +1,218 @@
+{
+    "0": {
+        "name": "Typing",
+        "keys": {
+            "*": {
+                "color": "#005aff",
+                "brightness": 16
+            }
+        },
+        "underglow": {
+            "color": "#005aff",
+            "brightness": 255
+        }
+    },
+    "1": {
+        "name": "Numbers",
+        "keys": {
+            "*": {
+                "color": "#ff9600",
+                "brightness": 16
+            },
+            "G": {
+                "color": "#92dce5",
+                "brightness": 255
+            },
+            "F": {
+                "color": "#af1b3f",
+                "brightness": 255
+            },
+            "D": {
+                "color": "#ead637",
+                "brightness": 255
+            },
+            "S": {
+                "color": "#473144",
+                "brightness": 255
+            },
+            "A": {
+                "color": "#2b590f",
+                "brightness": 255
+            },
+            "H": {
+                "color": "#92dce5",
+                "brightness": 255
+            },
+            "J": {
+                "color": "#af1b3f",
+                "brightness": 255
+            },
+            "K": {
+                "color": "#ead637",
+                "brightness": 255
+            },
+            "L": {
+                "color": "#473144",
+                "brightness": 255
+            },
+            "Semicolon": {
+                "color": "#2b590f",
+                "brightness": 255
+            }
+        },
+        "underglow": {
+            "color": "#ff9600",
+            "brightness": 255
+        }
+    },
+    "2": {
+        "name": "COSMIC",
+        "keys": {
+            "*": {
+                "color": "#b400ff",
+                "brightness": 16
+            },
+            "G": {
+                "color": "#92dce5",
+                "brightness": 255
+            },
+            "F": {
+                "color": "#af1b3f",
+                "brightness": 255
+            },
+            "D": {
+                "color": "#ead637",
+                "brightness": 255
+            },
+            "S": {
+                "color": "#473144",
+                "brightness": 255
+            },
+            "A": {
+                "color": "#2b590f",
+                "brightness": 255
+            },
+            "H": {
+                "color": "#92dce5",
+                "brightness": 255
+            },
+            "J": {
+                "color": "#af1b3f",
+                "brightness": 255
+            },
+            "K": {
+                "color": "#ead637",
+                "brightness": 255
+            },
+            "L": {
+                "color": "#473144",
+                "brightness": 255
+            },
+            "Semicolon": {
+                "color": "#2b590f",
+                "brightness": 255
+            },
+            "N": {
+                "color": "#4fea55",
+                "brightness": 255
+            },
+            "M": {
+                "color": "#4fea55",
+                "brightness": 255
+            },
+            "Comma": {
+                "color": "#4fea55",
+                "brightness": 255
+            },
+            "Period": {
+                "color": "#4fea55",
+                "brightness": 255
+            }
+        },
+        "underglow": {
+            "color": "#b400ff",
+            "brightness": 255
+        }
+    },
+    "3": {
+        "name": "Navigation",
+        "keys": {
+            "*": {
+                "color": "#00ff3c",
+                "brightness": 16
+            },
+            "H": {
+                "color": "#4fea55",
+                "brightness": 255
+            },
+            "J": {
+                "color": "#4fea55",
+                "brightness": 255
+            },
+            "K": {
+                "color": "#4fea55",
+                "brightness": 255
+            },
+            "L": {
+                "color": "#4fea55",
+                "brightness": 255
+            }
+        },
+        "underglow": {
+            "color": "#00ff3c",
+            "brightness": 255
+        }
+    },
+    "4": {
+        "name": "Editor",
+        "keys": {
+            "*": {
+                "color": "#00ffff",
+                "brightness": 16
+            }
+        },
+        "underglow": {
+            "color": "#00ffff",
+            "brightness": 255
+        }
+    },
+    "5": {
+        "name": "Function",
+        "keys": {
+            "*": {
+                "color": "#ff0000",
+                "brightness": 16
+            }
+        },
+        "underglow": {
+            "color": "#ff0000",
+            "brightness": 255
+        }
+    },
+    "6": {
+        "name": "Settings",
+        "keys": {
+            "*": {
+                "color": "#ffffff",
+                "brightness": 16
+            }
+        },
+        "underglow": {
+            "color": "#ffffff",
+            "brightness": 255
+        }
+    },
+    "7": {
+        "name": "Spare",
+        "keys": {
+            "*": {
+                "color": "#ff0078",
+                "brightness": 16
+            }
+        },
+        "underglow": {
+            "color": "#ff0078",
+            "brightness": 255
+        }
+    }
+}

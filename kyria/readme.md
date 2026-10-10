@@ -1,5 +1,95 @@
 # Kyria
 
+## Personal rev3 / floris configuration
+
+The active keyboard is Kyria rev3 with Liatris controllers and the `floris`
+keymap. `rev3/keymaps/floris/rgbrules.c` provides standalone layer lighting.
+The host extension in `host_lighting.c` exposes real layer state and accepts
+atomic RGB frames, forwarding them to the other half. It leaves VIA/Vial
+keymap editing available. Flash the same firmware to **both** halves; back up
+and restore the Vial layout when firmware upgrades reset EEPROM settings.
+
+### Host lighting on NixOS
+
+Import `kyria/nix/module.nix` from this Git repository's root, then configure:
+
+```nix
+services.kyria-layer = {
+  enable = true;
+  user = "flow";
+  layers."2" = {
+    name = "COSMIC";
+    keys = {
+      N = { color = "#4fea55"; brightness = 255; };
+      M = { color = "#4fea55"; brightness = 255; };
+      Comma = { color = "#4fea55"; brightness = 255; };
+      Period = { color = "#4fea55"; brightness = 255; };
+    };
+    underglow = { color = "#b400ff"; brightness = 180; };
+  };
+};
+```
+
+Keys identify **physical base-QWERTY positions**, not the current layer's
+output. `host/led-map.json` lists names and equivalent matrix coordinates
+(for example, `"5,1"` is H). `keys."*"` sets the background for all switch
+LEDs; individual keys override it. Colors use `#RRGGBB`; brightness is 0–255
+and is multiplied by Vial's global brightness. Overrides merge with the eight
+default layer schemes. Override a default highlight with brightness 0 to
+turn it off. Settings changes require a NixOS rebuild, not another flash.
+
+The user service polls actual firmware layer state every 50 ms, sends lighting
+on changes, and refreshes its lease every 400 ms. Status is written atomically
+to `$XDG_RUNTIME_DIR/kyria-layer.json`, including `layer`, `name`, both layer
+bitmasks, connection state, and whether split-frame synchronization is pending.
+Only changed status is written. Read it with:
+
+```sh
+cat "$XDG_RUNTIME_DIR/kyria-layer.json"
+systemctl --user status kyria-layer
+journalctl --user -u kyria-layer
+```
+
+Stop the service to return to firmware lighting. Unexpected service failure
+returns both halves to firmware lighting within 1.5 seconds. Colors stay in
+RAM; normal updates do not write EEPROM. A disconnect triggers automatic
+reconnection. During Vial's physical unlock sequence, the service temporarily
+backs off and reconnects afterward. The extension needs no separate unlock
+because it changes only volatile lighting and reads layer state.
+
+Pause the service before using Vial's GUI or CLI for configuration, since both
+clients share the raw-HID request/reply channel. Resume it afterward:
+
+```sh
+systemctl --user stop kyria-layer
+# Edit or load the layout with Vial.
+systemctl --user start kyria-layer
+```
+
+### Development checks
+
+```sh
+python3 -m unittest discover -s tests -v
+cc -std=c11 -Wall -Wextra -Werror '-DQMK_KEYBOARD_H="qmk.h"' \
+  -Itests/firmware tests/firmware/test_host_lighting.c -o /tmp/kyria-fw-test
+/tmp/kyria-fw-test
+nix-build tests/module.nix -A package -A configFile -A unit --no-out-link
+```
+
+Build inside a compatible Vial-QMK checkout:
+
+```sh
+make splitkb/kyria/rev3:floris CONVERT_TO=liatris
+```
+
+The tests cover physical LED mapping, brightness, HID framing, complete-frame
+commit, split transport retries, and lease expiry. The 32-byte raw-HID
+extension uses command `0xF0`, operations 0–5 (status, data, commit, release,
+heartbeat, begin), and a request token at byte 30. Byte 29 reports errors.
+Status includes version 1 and the `KYR1` signature. RGB chunks contain at most
+eight LEDs. Complete frames are required before activation, including on the
+slave; existing firmware indicators resume when the lease expires.
+
 ![Kyria](https://cdn.shopify.com/s/files/1/0227/9171/6941/products/PlateCase_f1870016-98b8-43a9-8aed-3eaf073b367b_900x.jpg?v=1568934600)
 
 An ergonomical 40% split keyboard
