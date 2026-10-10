@@ -6,20 +6,23 @@ layout="$source_dir/rev3/keymaps/floris/layout.vil"
 qmk_home=${QMK_HOME:-}
 firmware=
 build_only=0
+manual_reset=0
 qmk_revision=ae5e437c6401cd0686ed7efb096624e665732ca4
 qmk_url=https://github.com/splitkb/vial-qmk.git
 
 usage() {
     cat <<'EOF'
-Usage: ./flash.sh [--qmk-home DIR] [--firmware FILE] [--layout FILE] [--build-only]
+Usage: ./flash.sh [--qmk-home DIR] [--firmware FILE] [--layout FILE] [--build-only] [--manual-reset]
 
 Build and flash Kyria rev3/floris for Liatris, then restore and verify both
-halves. No backups are created. The checked-in layout.vil is restored.
+halves. Unlock with T + Y; bootloader entry is automatic by default.
+No backups are created. The checked-in layout.vil is restored.
 
   --qmk-home DIR  Use an existing checkout instead of downloading Vial-QMK.
   --firmware FILE  Use an existing UF2 instead of building.
   --layout FILE    Restore a different Vitaly-exported layout.
   --build-only    Download/setup and build without accessing the keyboard.
+  --manual-reset  Use each half’s reset button instead of Vial bootloader entry.
   --help          Show this help without accessing the keyboard.
 
 With no QMK_HOME/--qmk-home, a pinned checkout is downloaded and reused in
@@ -47,6 +50,7 @@ while (($#)); do
             esac
             shift 2 ;;
         --build-only) build_only=1; shift ;;
+        --manual-reset) manual_reset=1; shift ;;
         --help|-h) usage; exit 0 ;;
         *) usage; die "Unknown argument: $1" ;;
     esac
@@ -213,14 +217,28 @@ print(filesystems[0]["target"])
 ' 2>/dev/null
 }
 
+unlock_half() {
+    vial devices
+    [[ $(grep -c 'Path:.*hidraw' "$work_dir/vitaly.log") == 1 ]] || die 'Exactly one Kyria must be connected by USB.'
+    printf '\nHold T + Y continuously until the CLI reports unlocked (about five seconds).\n'
+    vial lock -u
+    grep -q 'Device is locked: false' "$work_dir/vitaly.log" || die 'Unlock did not complete. For firmware recovery, rerun with --manual-reset.'
+}
+
 flash_half() {
     local half=$1 partition mount_point deadline status
-    prompt "Connect USB to the $half half, leaving the interconnect attached. Double-tap THAT half’s reset button so RPI-RP2 appears."
+    if ((manual_reset)); then
+        prompt "Connect USB to the $half half, leaving the interconnect attached. Double-tap THAT half’s reset button so RPI-RP2 appears."
+    else
+        prompt "Connect USB to the $half half, leaving the interconnect attached. Wait for the keyboard to reconnect; the CLI will unlock it and enter the bootloader."
+        unlock_half
+        vial bootload
+    fi
     deadline=$((SECONDS + 30))
     while :; do
         if partition=$(boot_partition); then break; else status=$?; fi
         ((status != 2)) || die 'Disconnect the extra bootloader drive and retry.'
-        ((SECONDS < deadline)) || die 'RPI-RP2 did not appear. Reset the connected half and rerun the walkthrough.'
+        ((SECONDS < deadline)) || die 'RPI-RP2 did not appear. Reconnect and retry with --manual-reset if needed.'
         sleep 1
     done
     if ! mount_point=$(mount_path "$partition"); then
@@ -243,11 +261,7 @@ PY
 restore_half() {
     local half=$1
     prompt "USB should be connected to the $half half, now running the new firmware. Wait for the keyboard to reconnect."
-    vial devices
-    [[ $(grep -c 'Path:.*hidraw' "$work_dir/vitaly.log") == 1 ]] || die 'Exactly one Kyria must be connected by USB.'
-    printf '\nHold T + Y continuously until the CLI reports unlocked (about five seconds).\n'
-    vial lock -u
-    grep -q 'Device is locked: false' "$work_dir/vitaly.log" || die 'Unlock did not complete; layout has not been restored.'
+    unlock_half
     vial load -f "$layout"
     vial save -f "$work_dir/readback.vil"
     python3 - "$layout" "$work_dir/readback.vil" <<'PY'

@@ -50,7 +50,10 @@ elif name == 'make':
 elif name == 'vitaly':
     action = args[2]
     if action == 'devices': print('Path: /dev/hidrawFAKE')
-    elif action == 'lock': print('Device is locked: false')
+    elif action == 'lock':
+        print('Device is locked: ' + ('true' if os.environ.get('FLASH_TEST_FAILURE') == 'unlock' else 'false'))
+    elif action == 'bootload' and os.environ.get('FLASH_TEST_FAILURE') == 'bootload':
+        print('Error: failed to enter bootloader')
     elif action == 'load' and os.environ.get('FLASH_TEST_FAILURE') == 'load':
         print('Error: failed to load layout')  # Real CLI can exit 0 on error.
     elif action == 'save':
@@ -61,7 +64,7 @@ elif name == 'vitaly':
 
 
 class FlashTests(unittest.TestCase):
-    def run_walkthrough(self, failure='', main_half='left', automatic_build=False):
+    def run_walkthrough(self, failure='', main_half='left', automatic_build=False, manual_reset=False):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / 'bin').mkdir()
@@ -85,6 +88,8 @@ class FlashTests(unittest.TestCase):
                        XDG_CACHE_HOME=str(root / 'cache'), QMK_BIN='fake-qmk')
             env.pop('QMK_HOME', None)
             arguments = ['bash', str(ROOT / 'flash.sh'), '--layout', str(root / 'layout.vil')]
+            if manual_reset:
+                arguments += ['--manual-reset']
             if automatic_build:
                 arguments += ['--build-only']
             else:
@@ -123,9 +128,28 @@ class FlashTests(unittest.TestCase):
         flash = [i for i, event in enumerate(events) if event.startswith('cp ')]
         vial = [event for event in events if event.startswith('vitaly ')]
         self.assertEqual(len(flash), 2)
-        self.assertLess(flash[-1], next(i for i, e in enumerate(events) if e.startswith('vitaly ')))
-        self.assertEqual([e.split()[3] for e in vial], ['devices', 'lock', 'load', 'save'] * 2)
+        self.assertLess(flash[-1], next(i for i, e in enumerate(events) if e.startswith('vitaly -i 53060 load ')))
+        self.assertEqual([e.split()[3] for e in vial], ['devices', 'lock', 'bootload'] * 2 + ['devices', 'lock', 'load', 'save'] * 2)
         self.assertTrue(events[-1].startswith('systemctl --user start'))
+        self.assertNotIn('reset button', result.stdout)
+
+    def test_manual_reset_skips_vial_until_both_halves_are_flashed(self):
+        result, events = self.run_walkthrough(manual_reset=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        flash = [i for i, event in enumerate(events) if event.startswith('cp ')]
+        self.assertEqual(len(flash), 2)
+        self.assertLess(flash[-1], next(i for i, e in enumerate(events) if e.startswith('vitaly ')))
+        self.assertFalse(any(' bootload' in e for e in events))
+        self.assertIn('Double-tap THAT half', result.stdout)
+
+    def test_failed_unlock_or_bootload_never_copies_firmware(self):
+        for failure in ('unlock', 'bootload'):
+            with self.subTest(failure=failure):
+                result, events = self.run_walkthrough(failure=failure)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(any(e.startswith('cp ') or ' save ' in e or '--user start' in e for e in events))
+                if failure == 'unlock':
+                    self.assertFalse(any(' bootload' in e for e in events))
 
     def test_right_main_half_finishes_on_right(self):
         result, events = self.run_walkthrough(main_half='right')
@@ -147,7 +171,7 @@ class FlashTests(unittest.TestCase):
         self.assertFalse(any('--user start' in e for e in events))
 
     def test_multiple_bootloaders_never_copy_firmware(self):
-        result, events = self.run_walkthrough('ambiguous')
+        result, events = self.run_walkthrough('ambiguous', manual_reset=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(any(e.startswith(('cp ', 'vitaly ')) for e in events))
 

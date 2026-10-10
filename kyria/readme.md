@@ -66,10 +66,10 @@ The script walks through these steps:
 1. Validate the saved layout, download/reuse Vial-QMK, and build rev3/floris
    for Liatris. Pause the lighting service if it is running before flashing.
 2. Ask which half is your main USB half (left or right), then ask you to
-   close Vial and connect that half by USB. Double-tap that
-   half's reset button. The script finds and mounts its `RPI-RP2` drive,
+   close Vial and connect that half by USB. Hold **T + Y** during the unlock;
+   the script enters the bootloader through Vial, mounts its `RPI-RP2` drive,
    checks the bootloader identity, and copies the UF2.
-3. Ask you to move USB to the other half and repeat the reset/flash.
+3. Ask you to move USB to the other half and repeat the unlock/flash.
    Leave the interconnect attached throughout; connect only one USB half.
 4. Restore the other half, then ask you to move USB back and restore your
    main half. The walkthrough finishes with USB on your main half. For each
@@ -79,8 +79,11 @@ The script walks through these steps:
 5. Restart the lighting service if it was running and both restores passed.
    Check typing, encoders, layer switching, and lighting on both halves.
 
-Both halves are flashed before Vial unlock so they share the same split
-protocol. Vial commands run sequentially with a 90-second timeout; reported
+Both halves are flashed before restoring their layouts. For recovery or
+incompatible firmware on the two halves, run `./flash.sh --manual-reset`:
+it asks you to double-tap each half's reset button and skips Vial until both
+halves have been flashed. Restoration still requires T + Y unlock.
+Vial commands run sequentially with a 90-second timeout; reported
 errors stop the walkthrough even if the CLI exits successfully. An interrupted
 or failed restoration leaves the lighting service paused; finish restoring,
 then run `systemctl --user start kyria-layer.service`.
@@ -92,6 +95,7 @@ deleted on exit. To use an existing UF2 or a different Vitaly-exported layout:
 ```sh
 ./flash.sh --firmware /path/to/firmware.uf2
 ./flash.sh --layout /path/to/layout.vil
+./flash.sh --manual-reset
 ./flash.sh --help
 ```
 
