@@ -7,8 +7,6 @@ use std::{path::PathBuf, time::Duration};
 
 const APP_ID: &str = "io.github.SMFloris.KyriaLayer";
 const LABEL_CHARS: usize = 20;
-const LABEL_SIZE: f32 = 14.0;
-const BADGE_WIDTH: f32 = LABEL_CHARS as f32 * LABEL_SIZE * 0.6 + 16.0;
 type Wings = (Vec<String>, Vec<String>);
 
 #[derive(Debug, Deserialize)]
@@ -123,10 +121,10 @@ impl cosmic::Application for App {
     fn view(&self) -> Element<'_, Message> {
         let padding = self.core.applet.suggested_padding(true);
         let size = self.core.applet.suggested_size(true).0;
-        let (number, label, connected) = match &self.indicator {
-            Indicator::Named(number, label) => (number.to_string(), label.clone(), true),
-            Indicator::Number(number) => (number.to_string(), String::new(), true),
-            Indicator::Offline => ("—".into(), String::new(), false),
+        let (label, connected) = match &self.indicator {
+            Indicator::Named(number, label) => (format!("{number}: {label}"), true),
+            Indicator::Number(number) => (number.to_string(), true),
+            Indicator::Offline => ("—".into(), false),
         };
         let keyboard = cosmic::widget::icon::from_svg_bytes(KEYBOARD_ICON)
             .symbolic(true).icon().size(size)
@@ -135,40 +133,22 @@ impl cosmic::Application for App {
                     color: Some(Color::from_rgba(0.90, 0.91, 0.92, if connected { 1.0 } else { 0.55 })),
                 }
             }));
-        // Leave room below and beside the keyboard for its small layer number.
-        let icon_width = f32::from(size) + 4.0;
-        let icon = cosmic::widget::container(keyboard)
-            .width(icon_width).height(icon_width);
-        let number = cosmic::widget::container(
-            cosmic::widget::text(number).font(cosmic::font::bold()).size(11),
-        )
-        .width(icon_width).height(icon_width)
-        .align_x(Alignment::End).align_y(Alignment::End)
-        .class(cosmic::style::Container::Custom(Box::new(move |theme| {
-            cosmic::widget::container::Style {
-                text_color: Some(if connected {
-                    theme.cosmic().accent_color().into()
-                } else {
-                    Color::from_rgba(0.90, 0.91, 0.92, 0.55)
-                }),
-                ..Default::default()
-            }
-        })));
-        let keyboard = cosmic::iced::widget::stack([icon.into(), number.into()]);
         let badge = cosmic::widget::container(
-            cosmic::widget::text(label).font(cosmic::font::mono()).size(LABEL_SIZE),
+            self.core.applet.text(label).font(cosmic::font::semibold()),
         )
-        .width(BADGE_WIDTH)
-        .align_x(Alignment::Center)
-        .padding([2, 8])
+        .padding([2, 6])
         .class(cosmic::style::Container::Custom(Box::new(move |theme| {
             cosmic::widget::container::Style {
                 border: Border {
                     color: Color::from_rgba(0.90, 0.91, 0.92, 0.30),
                     width: 1.0,
-                    radius: 8.0.into(),
+                    radius: 6.0.into(),
                 },
-                text_color: Some(theme.cosmic().accent_color().into()),
+                text_color: Some(if connected {
+                    theme.cosmic().accent_color().into()
+                } else {
+                    Color::from_rgba(0.90, 0.91, 0.92, 0.55)
+                }),
                 ..Default::default()
             }
         })));
