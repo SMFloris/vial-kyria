@@ -7,6 +7,7 @@ let
         services.kyria-layer = {
           enable = true;
           user = "flow";
+          applet.enable = true;
           layers."2".underglow.color = "#123456";
           layers."2".keys.H.brightness = 7;
         };
@@ -23,5 +24,7 @@ assert cfg.layers."2".underglow.color == "#123456";
 assert builtins.length (builtins.attrNames cfg.layers) == 8;
 {
   inherit (cfg) package configFile;
+  applet = cfg.applet.package;
+  panelUnit = evaluated.config.systemd.user.units."kyria-layer-panel.service".unit;
   unit = evaluated.config.systemd.user.units."kyria-layer.service".unit;
 }

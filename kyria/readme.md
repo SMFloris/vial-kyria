@@ -42,7 +42,7 @@ The user service polls actual firmware layer state every 50 ms, sends lighting
 on changes, and refreshes its lease every 400 ms. Status is written atomically
 to `$XDG_RUNTIME_DIR/kyria-layer.json`, including `layer`, `name`, both layer
 bitmasks, connection state, and whether split-frame synchronization is pending.
-Only changed status is written. Read it with:
+Status changes and a once-per-second liveness heartbeat update the file. Read it with:
 
 ```sh
 cat "$XDG_RUNTIME_DIR/kyria-layer.json"
@@ -66,6 +66,38 @@ systemctl --user stop kyria-layer
 systemctl --user start kyria-layer
 ```
 
+### COSMIC panel applet
+
+Enable the native panel indicator alongside the host service:
+
+```nix
+services.kyria-layer.applet = {
+  enable = true;
+  installToPanel = true;
+  panel = "Panel";
+};
+```
+
+The applet displays `L3 · Navigation`, for example, and polls the status file
+every 100 ms. Missing, invalid, disconnected, or stale status displays
+`Kyria offline`. The daemon refreshes `updatedAt` once per second, allowing
+the indicator to detect a crashed service within five seconds. It reads the
+same `statusFile` configured for the service and never accesses the keyboard.
+
+The login unit registers the packaged desktop entry in the user's applications
+directory and adds `io.github.SMFloris.KyriaLayer` before the status area in
+the panel's right wing. Existing plugins and their order are preserved;
+repeated installation does not create duplicates. Install into the current
+session with `cosmic-applet-kyria-layer --install-panel Panel`. Set
+`installToPanel = false` to manage placement manually in COSMIC panel settings.
+Disabling the module does not remove the saved panel entry; remove it in panel
+settings if desired.
+
+`applet/` contains the Rust source and desktop entry. `nix/applet.nix` builds
+it as an added member of Nixpkgs' pinned `cosmic-applets` workspace, reusing
+its offline vendored dependencies and libcosmic version. It builds and tests
+only the Kyria applet; the installed COSMIC applets remain separate packages.
+
 ### Development checks
 
 ```sh
@@ -74,6 +106,7 @@ cc -std=c11 -Wall -Wextra -Werror '-DQMK_KEYBOARD_H="qmk.h"' \
   -Itests/firmware tests/firmware/test_host_lighting.c -o /tmp/kyria-fw-test
 /tmp/kyria-fw-test
 nix-build tests/module.nix -A package -A configFile -A unit --no-out-link
+nix-build tests/module.nix -A applet -A panelUnit --no-out-link
 ```
 
 Build inside a compatible Vial-QMK checkout:

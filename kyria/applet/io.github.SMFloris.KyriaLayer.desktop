@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Kyria Layer
+Comment=Show the active Kyria keyboard layer
+Type=Application
+Exec=cosmic-applet-kyria-layer
+Icon=input-keyboard-symbolic
+Terminal=false
+NoDisplay=true
+Categories=COSMIC;
+X-CosmicApplet=true
+X-HostWaylandDisplay=true
+X-OverflowPriority=10
+X-OverflowMinSize=64

@@ -213,6 +213,7 @@ def run(config, led_map, status_path):
                     "connected": True,
                     "name": config["layers"].get(str(layer), {}).get("name", f"Layer {layer}"),
                     "device": keyboard.path,
+                    "updatedAt": int(time.time()),
                 })
                 status_file.write(status)
                 time.sleep(config.get("pollIntervalMs", 50) / 1000)

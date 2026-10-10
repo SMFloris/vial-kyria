@@ -4,6 +4,7 @@ let
   cfg = config.services.kyria-layer;
   ledMap = builtins.fromJSON (builtins.readFile ../host/led-map.json);
   defaults = builtins.fromJSON (builtins.readFile ../host/defaults.json);
+  appletPackage = pkgs.callPackage ./applet.nix { inherit (cfg) statusFile; };
   styleType = lib.types.submodule {
     options = {
       color = lib.mkOption {
@@ -58,6 +59,25 @@ in {
       type = lib.types.nullOr lib.types.str;
       default = null;
       description = "Restrict the user service to this account; null allows any logged-in user.";
+    };
+    applet = {
+      enable = lib.mkEnableOption "COSMIC panel layer indicator";
+      installToPanel = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Add the applet to the panel at login, preserving existing plugins.";
+      };
+      panel = lib.mkOption {
+        type = lib.types.strMatching "[a-zA-Z0-9_-]+";
+        default = "Panel";
+        description = "COSMIC panel name to install the applet into.";
+      };
+      package = lib.mkOption {
+        type = lib.types.package;
+        default = appletPackage;
+        readOnly = true;
+        description = "Native COSMIC layer indicator applet.";
+      };
     };
     layers = lib.mkOption {
       type = lib.types.attrsOf layerType;
@@ -117,7 +137,24 @@ in {
       message = "services.kyria-layer.layers.${layer}: use a layer 0–7 and valid physical key names or matrix coordinates.";
     }) cfg.layers;
 
-    environment.systemPackages = [ package ];
+    environment.systemPackages = [ package ] ++ lib.optional cfg.applet.enable appletPackage;
+    systemd.user.services.kyria-layer-panel = lib.mkIf (cfg.applet.enable && cfg.applet.installToPanel) {
+      description = "Add Kyria layer indicator to the COSMIC panel";
+      wantedBy = [ "graphical-session.target" ];
+      partOf = [ "graphical-session.target" ];
+      unitConfig = lib.optionalAttrs (cfg.user != null) { ConditionUser = cfg.user; };
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStartPre = pkgs.writeShellScript "register-kyria-layer-applet" ''
+          desktopDir="''${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+          mkdir -p "$desktopDir"
+          ln -sfn ${appletPackage}/share/applications/io.github.SMFloris.KyriaLayer.desktop \
+            "$desktopDir/io.github.SMFloris.KyriaLayer.desktop"
+        '';
+        ExecStart = "${appletPackage}/bin/cosmic-applet-kyria-layer --install-panel ${cfg.applet.panel}";
+        RemainAfterExit = true;
+      };
+    };
     services.udev.extraRules = ''
       SUBSYSTEM=="hidraw", ATTRS{idVendor}=="${lib.toLower (lib.fixedWidthString 4 "0" (lib.toHexString cfg.vendorId))}", ATTRS{idProduct}=="${lib.toLower (lib.fixedWidthString 4 "0" (lib.toHexString cfg.productId))}", TAG+="uaccess"
     '';
