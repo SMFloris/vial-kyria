@@ -22,38 +22,30 @@ Older revisions and alternative keymaps have been removed; Git history retains t
 
 ## Build firmware
 
-Run these commands from the **Git repository root** (the directory containing
-`kyria/`). This repository is a keyboard definition, so it needs a Vial-QMK
-checkout with its submodules. The following firmware revision was used for the
-successful rev3/floris builds:
+From `kyria/`, build without accessing the keyboard:
 
 ```sh
-export KYRIA_REPO="$PWD"
-export QMK_HOME="$HOME/Projects/personal/kyria-vial-qmk"
-git clone https://github.com/splitkb/vial-qmk.git "$QMK_HOME"
-git -C "$QMK_HOME" checkout ae5e437c6401cd0686ed7efb096624e665732ca4
-git -C "$QMK_HOME" submodule update --init --recursive
-
-# One-time setup in the fresh checkout; keep the upstream definition as a backup.
-mv "$QMK_HOME/keyboards/splitkb/kyria" "$QMK_HOME/kyria-upstream-backup"
-ln -s "$KYRIA_REPO/kyria" "$QMK_HOME/keyboards/splitkb/kyria"
-nix-shell "$KYRIA_REPO/kyria/shell.nix"
+nix-shell shell.nix
+./flash.sh --build-only
 ```
 
-Inside that shell:
+On the first run, the script automatically downloads
+`https://github.com/splitkb/vial-qmk.git` at the tested revision
+`ae5e437c6401cd0686ed7efb096624e665732ca4`, initializes its submodules,
+and links this repository at `keyboards/splitkb/kyria`. The managed checkout
+is cached at `${XDG_CACHE_HOME:-$HOME/.cache}/kyria/vial-qmk/<revision>/` and
+reused on later runs. Failed downloads are removed and can be retried.
+The resulting `splitkb_kyria_rev3_floris_liatris.uf2` path is printed.
 
-```sh
-cd "$QMK_HOME"
-make splitkb/kyria/rev3:floris CONVERT_TO=liatris
-```
-
-The output is `$QMK_HOME/splitkb_kyria_rev3_floris_liatris.uf2`.
-`shell.nix` supplies ARM GCC, Make, and a QMK CLI with the Python dependencies
-needed by this older firmware tree. It uses your `<nixpkgs>`; on this machine,
-use the system pin by appending
+`shell.nix` supplies ARM GCC, Make, Git, Vitaly, and QMK's Python dependencies.
+It uses your `<nixpkgs>`; on this machine, use the system pin by appending
 `-I nixpkgs="$(nix eval --raw -f /etc/nixos/npins/default.nix nixpkgs)"`
-to the `nix-shell` command. On another OS, install the checkout's QMK toolchain
-and `requirements.txt`, then run the same Make command.
+to the `nix-shell` command.
+
+To use your own compatible checkout, set `QMK_HOME` or pass
+`--qmk-home /path/to/vial-qmk`; its `keyboards/splitkb/kyria` must already
+point to this repository. This override skips automatic download and setup.
+`kyria-flash` also runs the walkthrough from another working directory.
 
 ## Guided build, flash, and restore
 
@@ -61,18 +53,18 @@ From `kyria/`, enter the shell and run the walkthrough:
 
 ```sh
 nix-shell shell.nix
-./flash.sh --qmk-home "$QMK_HOME"
+./flash.sh
 ```
 
 The shell includes the pinned Vitaly 0.1.32 CLI and firmware build tools.
-`QMK_HOME` can also be set in the environment; otherwise the script asks for
-its path. The checkout must contain this repository's keyboard definition as
-shown above. From the QMK checkout, the same walkthrough is `kyria-flash`.
+No checkout path is needed: Vial-QMK is downloaded and set up automatically.
+An existing `QMK_HOME` environment variable overrides that download; unset it
+to use the managed checkout.
 
 The script walks through these steps:
 
-1. Pause the lighting service if it is running, validate the saved layout,
-   and build rev3/floris for Liatris.
+1. Validate the saved layout, download/reuse Vial-QMK, and build rev3/floris
+   for Liatris. Pause the lighting service if it is running before flashing.
 2. Ask which half is your main USB half (left or right), then ask you to
    close Vial and connect that half by USB. Double-tap that
    half's reset button. The script finds and mounts its `RPI-RP2` drive,
@@ -80,7 +72,8 @@ The script walks through these steps:
 3. Ask you to move USB to the other half and repeat the reset/flash.
    Leave the interconnect attached throughout; connect only one USB half.
 4. Restore the other half, then ask you to move USB back and restore your
-   main half. The walkthrough finishes with USB on your main half. For each unlock, hold **T + Y** until the CLI reports unlocked
+   main half. The walkthrough finishes with USB on your main half. For each
+   unlock, hold **T + Y** until the CLI reports unlocked
    (about five seconds). Each restore is followed by a full JSON readback
    comparison.
 5. Restart the lighting service if it was running and both restores passed.
@@ -97,8 +90,8 @@ then run `systemctl --user start kyria-layer.service`.
 deleted on exit. To use an existing UF2 or a different Vitaly-exported layout:
 
 ```sh
-./flash.sh --firmware "$QMK_HOME/splitkb_kyria_rev3_floris_liatris.uf2"
-./flash.sh --qmk-home "$QMK_HOME" --layout /path/to/layout.vil
+./flash.sh --firmware /path/to/firmware.uf2
+./flash.sh --layout /path/to/layout.vil
 ./flash.sh --help
 ```
 
@@ -109,8 +102,8 @@ request/reply channel. Edit the connected keyboard, export the result, and
 restart the service. To make your changes reproducible:
 
 ```sh
-vitaly -i 53060 save -f "$KYRIA_REPO/kyria/rev3/keymaps/floris/layout.vil"
-git -C "$KYRIA_REPO" diff -- kyria/rev3/keymaps/floris/layout.vil
+vitaly -i 53060 save -f "$(git rev-parse --show-toplevel)/kyria/rev3/keymaps/floris/layout.vil"
+git -C "$(git rev-parse --show-toplevel)" diff -- kyria/rev3/keymaps/floris/layout.vil
 ```
 
 Review and commit that export. It includes settings, macros, and tap dances;
@@ -198,15 +191,15 @@ halves. Keep the Vial UID and physical unlock combination unchanged.
 
 - **Keys/macros:** edit through Vial, export `layout.vil`, review, commit, push.
   Restore that export on the other half if either half can be the USB master.
-- **Firmware or built-in lighting:** pull this repo, rebuild in the linked
-  Vial-QMK checkout, and run `./flash.sh` to flash and restore both halves.
+- **Firmware or built-in lighting:** pull this repo and run `./flash.sh`
+  to download/reuse Vial-QMK, rebuild, flash, and restore both halves.
 - **Host service/applet:** commit and push this repo, put the new full SHA in
   `/etc/nixos/common/kyria.nix`, rebuild NixOS, and restart the two user units.
   Keep the host protocol compatible with the installed firmware.
 - **Layer colors/names only:** edit the NixOS layer mapping and rebuild/restart
   the service. No firmware flash is needed.
 
-For a source update: `git -C "$KYRIA_REPO" pull --ff-only`. Review the diff
+For a source update: `git -C "$(git rev-parse --show-toplevel)" pull --ff-only`. Review the diff
 before committing; push the keyboard repo before pushing a NixOS config that
 pins its new revision. Git SSH authentication and local sudo authentication
 are required for pushing and system activation respectively.

@@ -5,18 +5,25 @@ source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 layout="$source_dir/rev3/keymaps/floris/layout.vil"
 qmk_home=${QMK_HOME:-}
 firmware=
+build_only=0
+qmk_revision=ae5e437c6401cd0686ed7efb096624e665732ca4
+qmk_url=https://github.com/splitkb/vial-qmk.git
 
 usage() {
     cat <<'EOF'
-Usage: ./flash.sh [--qmk-home DIR] [--firmware FILE] [--layout FILE]
+Usage: ./flash.sh [--qmk-home DIR] [--firmware FILE] [--layout FILE] [--build-only]
 
 Build and flash Kyria rev3/floris for Liatris, then restore and verify both
 halves. No backups are created. The checked-in layout.vil is restored.
 
-  --qmk-home DIR  Compatible Vial-QMK checkout (otherwise use QMK_HOME/prompt).
+  --qmk-home DIR  Use an existing checkout instead of downloading Vial-QMK.
   --firmware FILE  Use an existing UF2 instead of building.
   --layout FILE    Restore a different Vitaly-exported layout.
+  --build-only    Download/setup and build without accessing the keyboard.
   --help          Show this help without accessing the keyboard.
+
+With no QMK_HOME/--qmk-home, a pinned checkout is downloaded and reused in
+${XDG_CACHE_HOME:-$HOME/.cache}/kyria/vial-qmk/.
 
 Run inside nix-shell shell.nix. Keep the interconnect attached, connect only
 one half by USB, and close Vial GUI/other CLI clients before continuing.
@@ -39,6 +46,7 @@ while (($#)); do
                 --layout) layout=$2 ;;
             esac
             shift 2 ;;
+        --build-only) build_only=1; shift ;;
         --help|-h) usage; exit 0 ;;
         *) usage; die "Unknown argument: $1" ;;
     esac
@@ -61,10 +69,12 @@ flock -n "$flash_lock" || die 'Another Kyria flash walkthrough is already runnin
 work_dir=$(mktemp -d -t kyria-flash.XXXXXXXX)
 service_was_running=0
 complete=0
+checkout_stage=
 cleanup() {
     local status=$?
     trap - EXIT
     rm -rf -- "$work_dir"
+    if [[ -n $checkout_stage ]]; then rm -rf -- "$checkout_stage"; fi
     if ((service_was_running)); then
         if ((complete)); then
             systemctl --user start kyria-layer.service || status=1
@@ -78,15 +88,38 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-if systemctl --user is-active --quiet kyria-layer.service; then
-    systemctl --user stop kyria-layer.service
-    service_was_running=1
-fi
-
 if [[ -z $firmware ]]; then
     command -v make >/dev/null || die 'Make is missing; enter the Nix shell.'
     if [[ -z $qmk_home ]]; then
-        read -r -p 'Path to your Vial-QMK checkout: ' qmk_home || exit 130
+        command -v git >/dev/null || die 'Git is missing; enter the Nix shell.'
+        cache_parent="${XDG_CACHE_HOME:-$HOME/.cache}/kyria/vial-qmk"
+        qmk_home="$cache_parent/$qmk_revision"
+        mkdir -p -- "$cache_parent"
+        if [[ ! -e $qmk_home && ! -L $qmk_home ]]; then
+            checkout_stage=$(mktemp -d "$cache_parent/.download.XXXXXXXX")
+            printf '\nDownloading compatible Vial-QMK (%s)…\n' "$qmk_revision"
+            git init --quiet "$checkout_stage"
+            git -C "$checkout_stage" remote add origin "$qmk_url"
+            git -C "$checkout_stage" fetch --depth 1 origin "$qmk_revision"
+            git -C "$checkout_stage" checkout --detach FETCH_HEAD
+            git -C "$checkout_stage" submodule update --init --recursive --depth 1
+            [[ -f $checkout_stage/quantum/vial.c ]] || die 'Downloaded checkout is missing Vial support.'
+            # Only replace the upstream keyboard in our newly created checkout.
+            rm -rf -- "$checkout_stage/keyboards/splitkb/kyria"
+            ln -s -- "$source_dir" "$checkout_stage/keyboards/splitkb/kyria"
+            printf '%s\n' "$qmk_revision" > "$checkout_stage/.git/kyria-managed"
+            mv -- "$checkout_stage" "$qmk_home"
+            checkout_stage=
+        else
+            [[ -f $qmk_home/.git/kyria-managed ]] || die "Cache is not managed by this script: $qmk_home"
+            [[ $(cat "$qmk_home/.git/kyria-managed") == "$qmk_revision" &&
+               $(git -C "$qmk_home" rev-parse HEAD) == "$qmk_revision" &&
+               $(git -C "$qmk_home" remote get-url origin) == "$qmk_url" ]] || die 'Cached Vial-QMK revision or origin differs; use --qmk-home for your own checkout.'
+            [[ -L $qmk_home/keyboards/splitkb/kyria ]] || die 'Cached keyboard path is no longer a symlink.'
+            # Repoint only the managed symlink when this repo has moved.
+            ln -sfn -- "$source_dir" "$qmk_home/keyboards/splitkb/kyria"
+            printf '\nReusing downloaded Vial-QMK: %s\n' "$qmk_home"
+        fi
     fi
     qmk_home=$(realpath -e -- "$qmk_home")
     [[ -f $qmk_home/quantum/vial.c ]] || die 'This must be a Vial-QMK checkout.'
@@ -120,6 +153,16 @@ for offset in range(0, len(data), 512):
         raise SystemExit('Firmware must be an RP2040/Liatris UF2 image.')
 print('Validated RP2040 UF2:', sys.argv[1])
 PY
+if ((build_only)); then
+    printf '\nFirmware ready: %s\n' "$firmware"
+    exit 0
+fi
+
+if systemctl --user is-active --quiet kyria-layer.service; then
+    systemctl --user stop kyria-layer.service
+    service_was_running=1
+fi
+
 printf 'Restore layout: %s\n' "$layout"
 while :; do
     read -r -p 'Which half is your main USB half? [left/right]: ' main_half || exit 130

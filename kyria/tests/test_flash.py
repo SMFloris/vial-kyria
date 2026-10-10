@@ -26,6 +26,27 @@ elif name == 'findmnt':
     print(json.dumps({'filesystems': [{'target': str(root / 'mount')}]}))
 elif name == 'cp':
     shutil.copyfile(args[-2], args[-1])
+elif name == 'git':
+    revision = 'ae5e437c6401cd0686ed7efb096624e665732ca4'
+    if args[0] == 'init':
+        (pathlib.Path(args[-1]) / '.git').mkdir()
+    else:
+        checkout = pathlib.Path(args[1])
+        action = args[2]
+        if action == 'fetch' and os.environ.get('FLASH_TEST_FAILURE') == 'download':
+            sys.exit(1)
+        if action == 'checkout':
+            (checkout / 'quantum').mkdir()
+            (checkout / 'quantum/vial.c').touch()
+            (checkout / 'keyboards/splitkb/kyria').mkdir(parents=True)
+        elif action == 'rev-parse': print(revision)
+        elif action == 'remote' and args[3] == 'get-url':
+            print('https://github.com/splitkb/vial-qmk.git')
+        elif action == 'submodule' and os.environ.get('FLASH_TEST_FAILURE') == 'submodule':
+            sys.exit(1)
+elif name == 'make':
+    checkout = pathlib.Path(args[1])
+    shutil.copyfile(root / 'firmware.uf2', checkout / 'splitkb_kyria_rev3_floris_liatris.uf2')
 elif name == 'vitaly':
     action = args[2]
     if action == 'devices': print('Path: /dev/hidrawFAKE')
@@ -40,7 +61,7 @@ elif name == 'vitaly':
 
 
 class FlashTests(unittest.TestCase):
-    def run_walkthrough(self, failure='', main_half='left'):
+    def run_walkthrough(self, failure='', main_half='left', automatic_build=False):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / 'bin').mkdir()
@@ -54,20 +75,47 @@ class FlashTests(unittest.TestCase):
             struct.pack_into('<I', block, 28, 0xe48bff56)
             struct.pack_into('<I', block, 508, 0x0ab16f30)
             (root / 'firmware.uf2').write_bytes(block)
-            for command in ('vitaly', 'lsblk', 'findmnt', 'udisksctl', 'cp', 'sync', 'systemctl'):
+            for command in ('vitaly', 'lsblk', 'findmnt', 'udisksctl', 'cp', 'sync', 'systemctl', 'git', 'make'):
                 executable = root / 'bin' / command
                 executable.write_text(FAKE)
                 executable.chmod(0o755)
             env = dict(os.environ, PATH=f'{root / "bin"}:{os.environ["PATH"]}',
                        FLASH_TEST_ROOT=str(root), FLASH_TEST_FAILURE=failure,
-                       XDG_RUNTIME_DIR=str(root), TMPDIR=str(root))
-            result = subprocess.run(
-                ['bash', str(ROOT / 'flash.sh'), '--firmware', str(root / 'firmware.uf2'),
-                 '--layout', str(root / 'layout.vil')], input=main_half + '\n' + '\n' * 6,
-                text=True, capture_output=True, env=env, timeout=15)
+                       XDG_RUNTIME_DIR=str(root), TMPDIR=str(root),
+                       XDG_CACHE_HOME=str(root / 'cache'), QMK_BIN='fake-qmk')
+            env.pop('QMK_HOME', None)
+            arguments = ['bash', str(ROOT / 'flash.sh'), '--layout', str(root / 'layout.vil')]
+            if automatic_build:
+                arguments += ['--build-only']
+            else:
+                arguments += ['--firmware', str(root / 'firmware.uf2')]
+            result = subprocess.run(arguments, input=main_half + '\n' + '\n' * 6,
+                                    text=True, capture_output=True, env=env, timeout=15)
+            if automatic_build and result.returncode == 0:
+                # A second run must reuse the same completed download.
+                result = subprocess.run(arguments, text=True, capture_output=True,
+                                        env=env, timeout=15)
+            self.assertFalse(list((root / 'cache/kyria/vial-qmk').glob('.download.*')),
+                             'Partial downloads must be removed')
             events = (root / 'events').read_text().splitlines()
             self.assertFalse(list(root.glob('kyria-flash.*')), 'Temporary readback must be removed')
             return result, events
+
+    def test_automatic_download_and_cached_build_do_not_access_hardware(self):
+        result, events = self.run_walkthrough(automatic_build=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('Reusing downloaded Vial-QMK', result.stdout)
+        self.assertEqual(sum(' fetch --depth 1 origin ae5e437' in e for e in events), 1)
+        self.assertEqual(sum(' submodule update --init --recursive --depth 1' in e for e in events), 1)
+        self.assertEqual(sum(e.startswith('make ') for e in events), 2)
+        self.assertFalse(any(e.startswith(('vitaly ', 'cp ', 'systemctl ', 'lsblk ')) for e in events))
+
+    def test_failed_download_stops_before_build_and_hardware(self):
+        for failure in ('download', 'submodule'):
+            with self.subTest(failure=failure):
+                result, events = self.run_walkthrough(failure=failure, automatic_build=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(any(e.startswith(('make ', 'vitaly ', 'cp ', 'systemctl ')) for e in events))
 
     def test_flash_both_before_restore_and_restart_service(self):
         result, events = self.run_walkthrough()
