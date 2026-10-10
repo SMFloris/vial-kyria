@@ -197,11 +197,13 @@ Tab sticky, and right-top outer key floating (`Super+Space`).
 The service polls actual layer state every 50 ms and writes an atomic status
 file at `$XDG_RUNTIME_DIR/kyria-layer.json`. The applet uses one-based display
 numbers: firmware layer 0 is shown as 1,
-and layer 7 as 8. A keyboard icon always accompanies a rounded, theme-accent
-badge. Unnamed layers show just their number in the badge. Set
-`layers."3".name = "Navigation"` to show `4: Navigation`; omit `name` or set
-it to `null` for the number without a name. Lighting configuration indices remain 0–7.
-A keyboard icon with a muted dash badge means disconnected, missing, or stale
+and layer 7 as 8. The number sits at the bottom-right of a neutral keyboard icon;
+only the number and layer name use the desktop accent color. The name has a subtle
+white-ish outline and a fixed-width, 20-character monospace space. Longer names
+end in an ellipsis. Set `layers."3".name = "Navigation"` to show number 4 on the
+icon beside `Navigation`; omit `name` or set it to `null` for a numbered icon
+without a name. Lighting configuration indices remain 0–7. A muted dash on the
+keyboard icon means disconnected, missing, or stale
 status. Stopping the service restores dim white keys and underglow; a crash or
 disconnect restores the same fallback within 1.5 seconds. Host colors stay in RAM and synchronize to both
 halves. Keep the Vial UID and physical unlock combination unchanged.
