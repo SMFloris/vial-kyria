@@ -33,7 +33,7 @@ nix-shell shell.nix
 
 On the first run, the script automatically downloads
 `https://github.com/splitkb/vial-qmk.git` at the tested revision
-`ae5e437c6401cd0686ed7efb096624e665732ca4`, initializes its submodules,
+`1d9c72972d372d93e10fb69d56023719e03be378`, initializes its submodules,
 and links this repository at `keyboards/splitkb/kyria`. The managed checkout
 is cached at `${XDG_CACHE_HOME:-$HOME/.cache}/kyria/vial-qmk/<revision>/` and
 reused on later runs. Failed downloads are removed and can be retried.
@@ -224,6 +224,24 @@ before committing; push the keyboard repo before pushing a NixOS config that
 pins its new revision. Git SSH authentication and local sudo authentication
 are required for pushing and system activation respectively.
 
+## Tap-hold behavior
+
+The saved Vial layout enables **Chordal Hold**, **Permissive Hold**, and
+**Flow Tap (150 ms)**. Tapping term remains 250 ms and quick-tap term remains
+200 ms. The build uses a newer pinned Vial-QMK revision that supports these
+features; the old firmware cannot apply the new settings.
+
+Chordal Hold treats same-hand rolls as taps and permits opposite-hand modifier
+chords. Permissive Hold resolves an allowed hold when another key is pressed
+and released while the dual-role key remains down. Flow Tap immediately types
+letters during fast sequences instead of accidentally activating modifiers.
+Thumb keys are exempt from the opposite-hand rule. These settings apply to
+mod-taps/layer-taps, including the existing home-row keys; tap dances are separate.
+
+After flashing, `flash.sh` restores these settings from `layout.vil` on both
+halves. Tune them in Vial's QMK Settings, then export `layout.vil` so the next
+flash preserves your choices. See [QMK's tap-hold reference](https://docs.qmk.fm/tap_hold).
+
 ## Validate changes
 
 From `kyria/`:
@@ -243,3 +261,7 @@ On this machine append `--arg nixpkgs '(import /etc/nixos/npins).nixpkgs'` to
 Rust tests using the same vendored libcosmic dependencies as COSMIC. Firmware
 changes also require the rev3/floris build above; hardware checks follow an
 explicitly requested flash.
+
+From the managed Vial-QMK root inside the Nix shell, test the combined tap-hold
+engine with `make test:tap_hold_configurations/chordal_hold/permissive_hold_flow_tap`.
+The firmware harness above also checks Kyria's hand and thumb classification.

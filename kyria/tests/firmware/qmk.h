@@ -4,6 +4,8 @@
 #define RGB_MATRIX_LED_COUNT 56
 #define RGB_MATRIX_SOLID_COLOR 1
 #define KYRIA_HOST_LIGHTING 42
+#define MATRIX_ROWS 8
+typedef struct { uint8_t col, row; } keypos_t;
 extern uint32_t layer_state;
 extern uint32_t default_layer_state;
 uint32_t timer_read32(void);

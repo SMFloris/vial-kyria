@@ -7,7 +7,7 @@ qmk_home=${QMK_HOME:-}
 firmware=
 build_only=0
 manual_reset=0
-qmk_revision=ae5e437c6401cd0686ed7efb096624e665732ca4
+qmk_revision=1d9c72972d372d93e10fb69d56023719e03be378
 qmk_url=https://github.com/splitkb/vial-qmk.git
 
 usage() {

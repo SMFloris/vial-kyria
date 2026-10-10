@@ -45,6 +45,7 @@ bool transaction_rpc_send(int8_t id, uint8_t size, const void *data) {
 
 #include "../../rev3/keymaps/floris/host_lighting.c"
 #include "../../rev3/keymaps/floris/rgbrules.c"
+#include "../../rev3/keymaps/floris/tap_hold.c"
 
 static uint8_t request(uint8_t op) {
     uint8_t data[32] = {HOST_COMMAND, op};
@@ -60,6 +61,15 @@ static void assert_white_fallback(void) {
 }
 
 int main(void) {
+    assert(chordal_hold_handedness((keypos_t){.row = 1, .col = 2}) == 'L'); // F/Ctrl
+    assert(chordal_hold_handedness((keypos_t){.row = 5, .col = 2}) == 'R'); // J/Ctrl
+    assert(chordal_hold_handedness((keypos_t){.row = 3, .col = 3}) == 'L'); // L14 is not a thumb.
+    assert(chordal_hold_handedness((keypos_t){.row = 7, .col = 3}) == 'R'); // R14 is not a thumb.
+    const uint8_t thumbs[] = {0, 1, 2, 4, 5};
+    for (uint8_t i = 0; i < sizeof(thumbs); i++) {
+        assert(chordal_hold_handedness((keypos_t){.row = 3, .col = thumbs[i]}) == '*');
+        assert(chordal_hold_handedness((keypos_t){.row = 7, .col = thumbs[i]}) == '*');
+    }
     keyboard_post_init_user();
     assert(matrix_enabled);
     assert_white_fallback(); // Keys and underglow are neutral before the first host frame.

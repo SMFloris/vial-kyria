@@ -16,3 +16,11 @@
 #define RGB_MATRIX_DEFAULT_VAL 16
 
 #define DYNAMIC_KEYMAP_LAYER_COUNT 8
+
+// Vial compiles these features itself and reads their settings from layout.vil.
+#define TAPPING_TERM 250
+#ifndef QMK_SETTINGS
+#define PERMISSIVE_HOLD
+#define CHORDAL_HOLD
+#define FLOW_TAP_TERM 150
+#endif

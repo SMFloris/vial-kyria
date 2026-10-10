@@ -27,7 +27,7 @@ elif name == 'findmnt':
 elif name == 'cp':
     shutil.copyfile(args[-2], args[-1])
 elif name == 'git':
-    revision = 'ae5e437c6401cd0686ed7efb096624e665732ca4'
+    revision = '1d9c72972d372d93e10fb69d56023719e03be378'
     if args[0] == 'init':
         (pathlib.Path(args[-1]) / '.git').mkdir()
     else:
@@ -121,7 +121,7 @@ class FlashTests(unittest.TestCase):
         result, events = self.run_walkthrough(automatic_build=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('Reusing downloaded Vial-QMK', result.stdout)
-        self.assertEqual(sum(' fetch --depth 1 origin ae5e437' in e for e in events), 1)
+        self.assertEqual(sum(' fetch --depth 1 origin 1d9c729' in e for e in events), 1)
         self.assertEqual(sum(' submodule update --init --recursive --depth 1' in e for e in events), 1)
         self.assertEqual(sum(e.startswith('make ') for e in events), 2)
         self.assertFalse(any(e.startswith(('vitaly ', 'cp ', 'systemctl ', 'lsblk ')) for e in events))
