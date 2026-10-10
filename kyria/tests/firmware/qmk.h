@@ -1,7 +1,7 @@
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
-#define RGB_MATRIX_LED_COUNT 62
+#define RGB_MATRIX_LED_COUNT 56
 #define KYRIA_HOST_LIGHTING 42
 extern uint32_t layer_state;
 extern uint32_t default_layer_state;

@@ -57,16 +57,16 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
             {43, 89, 15},
         };
         for (uint8_t i = 0; i < 5; i++) {
-            set_indicator(19 + i, led_min, led_max, colors[i][0], colors[i][1], colors[i][2]);
-            set_indicator(50 + i, led_min, led_max, colors[i][0], colors[i][1], colors[i][2]);
+            set_indicator(g_led_config.matrix_co[1][1 + i], led_min, led_max, colors[i][0], colors[i][1], colors[i][2]);
+            set_indicator(g_led_config.matrix_co[5][1 + i], led_min, led_max, colors[i][0], colors[i][1], colors[i][2]);
         }
     }
 
     if (layer == COSMIC_LAYER || layer == NAVIGATION_LAYER) {
         // COSMIC focus: N/M/Comma/Period. Navigation arrows: H/J/K/L.
-        uint8_t first_led = layer == COSMIC_LAYER ? 44 : 50;
+        uint8_t row = layer == COSMIC_LAYER ? 6 : 5;
         for (uint8_t i = 0; i < 4; i++) {
-            set_indicator(first_led + i, led_min, led_max, 79, 234, 85);
+            set_indicator(g_led_config.matrix_co[row][1 + i], led_min, led_max, 79, 234, 85);
         }
     }
 

@@ -1,6 +1,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import re
 import struct
 import tempfile
 import unittest
@@ -24,7 +25,32 @@ class FrameTests(unittest.TestCase):
         for key in ("H", "J", "K", "L"):
             self.assertEqual(arrows[LED_MAP["keyLeds"][key]], bytes.fromhex("4fea55"))
         self.assertEqual(len({host.render_frame(config, LED_MAP, i)[0] for i in range(8)}), 8)
-        self.assertEqual(LED_MAP["underglowLeds"], list(range(6)) + list(range(31, 37)))
+        self.assertEqual(LED_MAP["underglowLeds"], list(range(25, 31)))
+
+    def test_numbers_highlight_home_rows_with_left_underglow_bypassed(self):
+        frame = host.render_frame({"layers": DEFAULTS}, LED_MAP, 1)
+        for key, index in zip("GFDSA", range(13, 18)):
+            self.assertEqual(LED_MAP["keyLeds"][key], index)
+            self.assertEqual(frame[index], host.rgb(DEFAULTS["1"]["keys"][key]))
+        background = host.rgb(DEFAULTS["1"]["keys"]["*"])
+        for index in range(19, 24):
+            self.assertEqual(frame[index], background)
+        for key, index in zip(("H", "J", "K", "L", "Semicolon"), range(44, 49)):
+            self.assertEqual(LED_MAP["keyLeds"][key], index)
+            self.assertEqual(frame[index], host.rgb(DEFAULTS["1"]["keys"][key]))
+
+    def test_host_led_map_matches_firmware_hardware_definition(self):
+        source = (ROOT / "rev3/keyboard.json").read_text()
+        hardware = json.loads(re.sub(r"//[^\n]*", "", source))
+        leds = hardware["rgb_matrix"]["layout"]
+        self.assertEqual(LED_MAP["ledCount"], len(leds))
+        self.assertEqual(hardware["rgb_matrix"]["split_count"], [25, 31])
+        self.assertEqual(LED_MAP["underglowLeds"], [i for i, led in enumerate(leds) if led["flags"] == 2])
+        self.assertEqual(LED_MAP["switchLeds"], [i for i, led in enumerate(leds) if led["flags"] == 4])
+        for index, led in enumerate(leds):
+            if "matrix" in led:
+                row, column = led["matrix"]
+                self.assertEqual(LED_MAP["keyLeds"][f"{row},{column}"], index)
 
     def test_brightness_and_key_override_are_order_independent(self):
         config = {"layers": {"0": {
@@ -32,9 +58,9 @@ class FrameTests(unittest.TestCase):
             "underglow": {"color": "#00ff00", "brightness": 64},
         }}}
         frame = host.render_frame(config, LED_MAP, 0)
-        self.assertEqual(frame[50], b"\x80\0\0")
-        self.assertEqual(frame[51], b"\0\0\xff")
-        self.assertEqual(frame[31], b"\0\x40\0")
+        self.assertEqual(frame[44], b"\x80\0\0")
+        self.assertEqual(frame[45], b"\0\0\xff")
+        self.assertEqual(frame[25], b"\0\x40\0")
 
     def test_invalid_keys_layers_and_brightness_are_rejected(self):
         for scheme in [
@@ -69,7 +95,7 @@ class ProtocolTests(unittest.TestCase):
     def test_unrelated_hid_replies_are_ignored(self):
         keyboard = self.keyboard()
         reply = bytearray(32)
-        reply[:5] = bytes((host.COMMAND, host.STATUS, 1, 62, 3))
+        reply[:5] = bytes((host.COMMAND, host.STATUS, 1, LED_MAP["ledCount"], 3))
         reply[8:12] = struct.pack("<I", 8)
         reply[12:16] = struct.pack("<I", 1)
         reply[16:20] = b"KYR1"
@@ -90,7 +116,7 @@ class ProtocolTests(unittest.TestCase):
         calls = request.call_args_list
         self.assertEqual(calls[0].args, (host.BEGIN,))
         self.assertEqual(calls[-1].args, (host.COMMIT,))
-        self.assertEqual(len(calls), 10)
+        self.assertEqual(len(calls), 9)
         reconstructed = b"".join(call.args[1][2:] for call in calls[1:-1])
         self.assertEqual(reconstructed, b"".join(frame))
 

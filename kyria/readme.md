@@ -3,6 +3,8 @@
 Personal firmware for a **Kyria rev3 with two Liatris controllers**, with Vial
 editing, per-layer lighting, a NixOS host service, and a COSMIC panel indicator.
 The firmware build target is `splitkb/kyria/rev3:floris CONVERT_TO=liatris`.
+This board has 25 left switch LEDs with underglow bypassed, and 31 right LEDs
+(six underglow plus 25 switch LEDs). Firmware and host maps use 56 LEDs total.
 
 ## Files to edit
 

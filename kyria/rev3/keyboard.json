@@ -121,9 +121,9 @@
         }
     },
     "rgblight": {
-        "led_count": 62,
+        "led_count": 56,
         "split": true,
-        "split_count": [31, 31],
+        "split_count": [25, 31],
         "max_brightness": 128
     },
     "ws2812": {
@@ -132,12 +132,7 @@
     "rgb_matrix": {
         "driver": "ws2812",
         "layout": [
-            {"flags": 2, "x": 75, "y": 2},                     // L RGB1
-            {"flags": 2, "x": 50, "y": 1},                     // L RGB2
-            {"flags": 2, "x": 14, "y": 4},                     // L RGB3
-            {"flags": 2, "x": 25, "y": 45},                    // L RGB4
-            {"flags": 2, "x": 58, "y": 49},                    // L RGB5
-            {"flags": 2, "x": 94, "y": 53},                    // L RGB6
+            // This board bypasses left underglow: 25 left LEDs, 31 right LEDs.
             {"flags": 4, "matrix": [3, 0], "x": 94, "y": 64},  // L SW21
             {"flags": 4, "matrix": [3, 5], "x": 79, "y": 60},  // L SW22
             {"flags": 4, "matrix": [3, 1], "x": 65, "y": 53},  // L SW23
@@ -196,6 +191,6 @@
             {"flags": 4, "matrix": [4, 6], "x": 224, "y": 11}  // R SW06
         ],
         "max_brightness": 128,
-        "split_count": [31, 31]
+        "split_count": [25, 31]
     }
 }

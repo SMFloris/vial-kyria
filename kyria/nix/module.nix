@@ -37,7 +37,7 @@ let
       underglow = lib.mkOption {
         type = styleType;
         default = { color = "#000000"; brightness = 0; };
-        description = "Color and brightness of all twelve underglow LEDs.";
+        description = "Color and brightness of the six installed right-half underglow LEDs.";
       };
     };
   };
