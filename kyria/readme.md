@@ -1,104 +1,220 @@
-# Kyria
+# Kyria rev3 / floris
 
-## Personal rev3 / floris configuration
+Personal firmware for a **Kyria rev3 with two Liatris controllers**, with Vial
+editing, per-layer lighting, a NixOS host service, and a COSMIC panel indicator.
+The firmware build target is `splitkb/kyria/rev3:floris CONVERT_TO=liatris`.
 
-The active keyboard is Kyria rev3 with Liatris controllers and the `floris`
-keymap. `rev3/keymaps/floris/rgbrules.c` provides standalone layer lighting.
-The host extension in `host_lighting.c` exposes real layer state and accepts
-atomic RGB frames, forwarding them to the other half. It leaves VIA/Vial
-keymap editing available. Flash the same firmware to **both** halves; back up
-and restore the Vial layout when firmware upgrades reset EEPROM settings.
+## Files to edit
 
-### Host lighting on NixOS
+| Path | Purpose |
+| --- | --- |
+| `rev3/keymaps/floris/layout.vil` | Saved personal Vial layout: keys, encoders, macros, tap dances, and settings. |
+| `rev3/keymaps/floris/keymap.json` | Factory key/encoder defaults and enabled RGB effects. These differ from the personal Vial layout; restore `layout.vil` after flashing. |
+| `rev3/keymaps/floris/config.h`, `rules.mk` | Vial identity, unlock keys, layer count, and firmware features. |
+| `rev3/keymaps/floris/rgbrules.c` | Standalone lighting when the host service is absent. |
+| `rev3/keymaps/floris/host_lighting.c`, `.h` | Layer reporting and synchronized RGB frames for both halves. |
+| `rev3/`, `kyria.c`, `info.json`, `rules.mk` | Required QMK hardware definitions and callbacks. |
+| `host/` | Python service, physical LED map, and default colors. |
+| `nix/`, `applet/` | NixOS module and COSMIC applet. |
+| `tests/`, `shell.nix` | Validation and Nix firmware build tools. |
 
-Import `kyria/nix/module.nix` from this Git repository's root, then configure:
+Older revisions and alternative keymaps have been removed; Git history retains them.
+
+## Build firmware
+
+Run these commands from the **Git repository root** (the directory containing
+`kyria/`). This repository is a keyboard definition, so it needs a Vial-QMK
+checkout with its submodules. The following firmware revision was used for the
+successful rev3/floris builds:
+
+```sh
+export KYRIA_REPO="$PWD"
+export QMK_HOME="$HOME/Projects/personal/kyria-vial-qmk"
+git clone https://github.com/splitkb/vial-qmk.git "$QMK_HOME"
+git -C "$QMK_HOME" checkout ae5e437c6401cd0686ed7efb096624e665732ca4
+git -C "$QMK_HOME" submodule update --init --recursive
+
+# One-time setup in the fresh checkout; keep the upstream definition as a backup.
+mv "$QMK_HOME/keyboards/splitkb/kyria" "$QMK_HOME/kyria-upstream-backup"
+ln -s "$KYRIA_REPO/kyria" "$QMK_HOME/keyboards/splitkb/kyria"
+nix-shell "$KYRIA_REPO/kyria/shell.nix"
+```
+
+Inside that shell:
+
+```sh
+cd "$QMK_HOME"
+make splitkb/kyria/rev3:floris CONVERT_TO=liatris
+```
+
+The output is `$QMK_HOME/splitkb_kyria_rev3_floris_liatris.uf2`.
+`shell.nix` supplies ARM GCC, Make, and a QMK CLI with the Python dependencies
+needed by this older firmware tree. It uses your `<nixpkgs>`; on this machine,
+use the system pin by appending
+`-I nixpkgs="$(nix eval --raw -f /etc/nixos/npins/default.nix nixpkgs)"`
+to the `nix-shell` command. On another OS, install the checkout's QMK toolchain
+and `requirements.txt`, then run the same Make command.
+
+## Back up, flash, and restore
+
+Install the Vial CLI [Vitaly](https://github.com/bskaplou/vitaly/releases)
+from its Linux release archive and put the extracted `vitaly` executable on
+your PATH. The tested CLI version is 0.1.32. Its `-i` option takes the decimal
+USB product ID: `53060`.
+Use a fresh export before each firmware update; `layout.vil` is the checked-in
+snapshot, not a substitute for changes made since that snapshot.
+
+```sh
+systemctl --user stop kyria-layer.service # If installed.
+vitaly -i 53060 devices
+vitaly -i 53060 save -f "$HOME/kyria-before-flash.vil"
+vitaly -i 53060 lock -u
+```
+
+While unlock waits, hold **T + Y** (the innermost top-row letter keys) together
+for at least five seconds. Check that the CLI reports the keyboard unlocked.
+Vitaly can return exit code 0 on failure, so read its output.
+
+1. Enter the bootloader with `vitaly -i 53060 bootload`, or double-tap the
+   connected half's reset button. Liatris appears as an `RPI-RP2` USB drive.
+2. Mount that drive and copy the compiled UF2 onto it. For example, after
+   checking its actual mount path:
+   ```sh
+   cp "$QMK_HOME/splitkb_kyria_rev3_floris_liatris.uf2" /run/media/"$USER"/RPI-RP2/NEW.UF2
+   sync
+   ```
+   The drive disconnects and the keyboard restarts.
+3. Unlock again with `vitaly -i 53060 lock -u` and T + Y. Restore the fresh
+   backup, or the repository snapshot for the saved personal layout:
+   ```sh
+   vitaly -i 53060 load -f "$HOME/kyria-before-flash.vil"
+   # Alternatively: vitaly -i 53060 load -f "$KYRIA_REPO/kyria/rev3/keymaps/floris/layout.vil"
+   vitaly -i 53060 save -f "$HOME/kyria-after-flash.vil"
+   ```
+   Compare the exported JSON with the backup before continuing.
+4. Move USB to the other half, leaving the interconnect attached. Repeat the
+   bootloader, copy, unlock, restore, and readback steps with the **same UF2
+   and layout**. Both halves need the host-lighting firmware.
+5. Reconnect normally and start `systemctl --user start kyria-layer.service`
+   if the NixOS module is installed. Check typing, both encoders, layers, and
+   lighting on both halves.
+
+`make splitkb/kyria/rev3:floris:flash CONVERT_TO=liatris` is also available in
+the build shell; it builds and waits for a bootloader. Back up first and repeat
+for both halves, then restore the Vial layout as above.
+
+## Edit the layout without flashing
+
+Stop the host service before using Vial GUI or CLI: both share the raw-HID
+request/reply channel. Edit the connected keyboard, export the result, and
+restart the service. To make your changes reproducible:
+
+```sh
+vitaly -i 53060 save -f "$KYRIA_REPO/kyria/rev3/keymaps/floris/layout.vil"
+git -C "$KYRIA_REPO" diff -- kyria/rev3/keymaps/floris/layout.vil
+```
+
+Review and commit that export. It includes settings, macros, and tap dances;
+changing `keymap.json` alone does not update the layout already stored in Vial.
+
+## Install the host service and COSMIC applet
+
+Import the module from a Git revision you have already pushed:
 
 ```nix
-services.kyria-layer = {
-  enable = true;
-  user = "flow";
-  layers."2" = {
-    name = "COSMIC";
-    keys = {
-      N = { color = "#4fea55"; brightness = 255; };
-      M = { color = "#4fea55"; brightness = 255; };
-      Comma = { color = "#4fea55"; brightness = 255; };
-      Period = { color = "#4fea55"; brightness = 255; };
-    };
-    underglow = { color = "#b400ff"; brightness = 180; };
+{ ... }:
+let
+  kyria = builtins.fetchGit {
+    url = "https://github.com/SMFloris/vial-kyria.git";
+    ref = "master";
+    rev = "<full Git commit SHA>";
   };
-};
+in {
+  imports = [ "${kyria}/kyria/nix/module.nix" ];
+  services.kyria-layer = {
+    enable = true;
+    user = "flow";
+    applet.enable = true;
+    applet.installToPanel = true;
+    applet.panel = "Panel";
+    layers."2" = {
+      name = "COSMIC";
+      keys.N = { color = "#4fea55"; brightness = 255; };
+      underglow = { color = "#b400ff"; brightness = 180; };
+    };
+  };
+}
 ```
 
-Keys identify **physical base-QWERTY positions**, not the current layer's
-output. `host/led-map.json` lists names and equivalent matrix coordinates
-(for example, `"5,1"` is H). `keys."*"` sets the background for all switch
-LEDs; individual keys override it. Colors use `#RRGGBB`; brightness is 0–255
-and is multiplied by Vial's global brightness. Overrides merge with the eight
-default layer schemes. Override a default highlight with brightness 0 to
-turn it off. Settings changes require a NixOS rebuild, not another flash.
-
-The user service polls actual firmware layer state every 50 ms, sends lighting
-on changes, and refreshes its lease every 400 ms. Status is written atomically
-to `$XDG_RUNTIME_DIR/kyria-layer.json`, including `layer`, `name`, both layer
-bitmasks, connection state, and whether split-frame synchronization is pending.
-Status changes and a once-per-second liveness heartbeat update the file. Read it with:
+On this machine the import and settings live in `/etc/nixos/common/kyria.nix`.
+Activate with `cd /etc/nixos && ./rebuild.sh switch`; elsewhere use
+`sudo nixos-rebuild switch`. Then start the current session's user units:
 
 ```sh
+systemctl --user daemon-reload
+systemctl --user start kyria-layer.service kyria-layer-panel.service
 cat "$XDG_RUNTIME_DIR/kyria-layer.json"
-systemctl --user status kyria-layer
-journalctl --user -u kyria-layer
+journalctl --user -u kyria-layer.service -f
 ```
 
-Stop the service to return to firmware lighting. Unexpected service failure
-returns both halves to firmware lighting within 1.5 seconds. Colors stay in
-RAM; normal updates do not write EEPROM. A disconnect triggers automatic
-reconnection. During Vial's physical unlock sequence, the service temporarily
-backs off and reconnects afterward. The extension needs no separate unlock
-because it changes only volatile lighting and reads layer state.
+The panel installer preserves existing applets and inserts the layer indicator
+before the status area in the right wing. It registers a desktop-entry symlink
+in your user applications directory, updating it at login. Manual placement:
+`cosmic-applet-kyria-layer --install-panel Panel`. Set `installToPanel = false`
+when managing placement through COSMIC settings. When disabling the applet,
+remove its panel entry and user desktop-entry symlink if no longer wanted.
 
-Pause the service before using Vial's GUI or CLI for configuration, since both
-clients share the raw-HID request/reply channel. Resume it afterward:
+### Lighting and layer reference
 
-```sh
-systemctl --user stop kyria-layer
-# Edit or load the layout with Vial.
-systemctl --user start kyria-layer
-```
+Configure `services.kyria-layer.layers."<number>".keys."<key>"` and
+`.underglow` using `{ color = "#RRGGBB"; brightness = 0..255; }`.
+Key names refer to **physical QWERTY positions**, regardless of current outputs.
+`host/led-map.json` lists names and matrix coordinates such as `"5,1"` (H).
+`keys."*"` sets all switch LEDs; specific keys override it. Defaults merge with
+your settings; brightness 0 disables a default highlight. Vial's global RGB
+brightness multiplies the configured brightness, and its RGB toggle still works.
 
-### COSMIC panel applet
+| Layer | Name | Default underglow | Useful keys in saved layout |
+| --- | --- | --- | --- |
+| 0 | Typing | Blue | Home-row modifiers; left thumb MO(2), MO(3), MO(4). |
+| 1 | Numbers | Amber | Hold A or semicolon; right-thumb TG(1) toggles. |
+| 2 | COSMIC | Purple | Hold MO(2): N/M/Comma/Period focus left/down/up/right. |
+| 3 | Navigation | Green | Hold MO(3): H/J/K/L are left/down/up/right arrows. |
+| 4 | Editor | Cyan | Editor macros. |
+| 5 | Function | Red | Function keys. |
+| 6 | Settings | White | Keyboard settings. |
+| 7 | Spare | Pink | Reserved. |
 
-Enable the native panel indicator alongside the host service:
+Layer 2 also has Z fullscreen, X maximize, C horizontal, V vertical, B stacking,
+Tab sticky, and right-top outer key floating (`Super+Space`).
 
-```nix
-services.kyria-layer.applet = {
-  enable = true;
-  installToPanel = true;
-  panel = "Panel";
-};
-```
+The service polls actual layer state every 50 ms and writes an atomic status
+file at `$XDG_RUNTIME_DIR/kyria-layer.json`. The applet shows `L3 · Navigation`,
+or `Kyria offline` for disconnected, missing, or stale status. Stop the service
+to return to built-in lighting; a crash or disconnect restores firmware
+lighting within 1.5 seconds. Host colors stay in RAM and synchronize to both
+halves. Keep the Vial UID and physical unlock combination unchanged.
 
-The applet displays `L3 · Navigation`, for example, and polls the status file
-every 100 ms. Missing, invalid, disconnected, or stale status displays
-`Kyria offline`. The daemon refreshes `updatedAt` once per second, allowing
-the indicator to detect a crashed service within five seconds. It reads the
-same `statusFile` configured for the service and never accesses the keyboard.
+## Update checklist
 
-The login unit registers the packaged desktop entry in the user's applications
-directory and adds `io.github.SMFloris.KyriaLayer` before the status area in
-the panel's right wing. Existing plugins and their order are preserved;
-repeated installation does not create duplicates. Install into the current
-session with `cosmic-applet-kyria-layer --install-panel Panel`. Set
-`installToPanel = false` to manage placement manually in COSMIC panel settings.
-Disabling the module does not remove the saved panel entry; remove it in panel
-settings if desired.
+- **Keys/macros:** edit through Vial, export `layout.vil`, review, commit, push.
+  Restore that export on the other half if either half can be the USB master.
+- **Firmware or built-in lighting:** pull this repo, rebuild in the linked
+  Vial-QMK checkout, back up, flash both halves, and restore the live layout.
+- **Host service/applet:** commit and push this repo, put the new full SHA in
+  `/etc/nixos/common/kyria.nix`, rebuild NixOS, and restart the two user units.
+  Keep the host protocol compatible with the installed firmware.
+- **Layer colors/names only:** edit the NixOS layer mapping and rebuild/restart
+  the service. No firmware flash is needed.
 
-`applet/` contains the Rust source and desktop entry. `nix/applet.nix` builds
-it as an added member of Nixpkgs' pinned `cosmic-applets` workspace, reusing
-its offline vendored dependencies and libcosmic version. It builds and tests
-only the Kyria applet; the installed COSMIC applets remain separate packages.
+For a source update: `git -C "$KYRIA_REPO" pull --ff-only`. Review the diff
+before committing; push the keyboard repo before pushing a NixOS config that
+pins its new revision. Git SSH authentication and local sudo authentication
+are required for pushing and system activation respectively.
 
-### Development checks
+## Validate changes
+
+From `kyria/`:
 
 ```sh
 python3 -m unittest discover -s tests -v
@@ -107,61 +223,11 @@ cc -std=c11 -Wall -Wextra -Werror '-DQMK_KEYBOARD_H="qmk.h"' \
 /tmp/kyria-fw-test
 nix-build tests/module.nix -A package -A configFile -A unit --no-out-link
 nix-build tests/module.nix -A applet -A panelUnit --no-out-link
+git diff --check
 ```
 
-Build inside a compatible Vial-QMK checkout:
-
-```sh
-make splitkb/kyria/rev3:floris CONVERT_TO=liatris
-```
-
-The tests cover physical LED mapping, brightness, HID framing, complete-frame
-commit, split transport retries, and lease expiry. The 32-byte raw-HID
-extension uses command `0xF0`, operations 0–5 (status, data, commit, release,
-heartbeat, begin), and a request token at byte 30. Byte 29 reports errors.
-Status includes version 1 and the `KYR1` signature. RGB chunks contain at most
-eight LEDs. Complete frames are required before activation, including on the
-slave; existing firmware indicators resume when the lease expires.
-
-![Kyria](https://cdn.shopify.com/s/files/1/0227/9171/6941/products/PlateCase_f1870016-98b8-43a9-8aed-3eaf073b367b_900x.jpg?v=1568934600)
-
-An ergonomical 40% split keyboard
-
-* Keyboard Maintainer: [splitkb.com](https://github.com/splitkb)
-* Hardware Supported: Pro Micro 5V/16MHz and compatible.
-* Hardware Availability: [splitkb.com](https://splitkb.com/products/kyria-pcb-kit)
-
-Make example for this keyboard (after setting up your build environment):
-
-    make splitkb/kyria/rev3:default
-
-Example of flashing this keyboard:
-
-    make splitkb/kyria/rev3:default:flash
-
-Replace "rev3" with "rev2" if you have a Kyria of revision 2.x, or "rev1" if you have a Kyria of revision 1.4 or below.
-Not sure what revision yours is? It is printed on the outer lower edge of the PCB!
-As a rule of thumb, all Kyrias sold after January 1st 2022 are revision 2.x.
-
-See the [build environment setup](https://docs.qmk.fm/#/getting_started_build_tools) and the [make instructions](https://docs.qmk.fm/#/getting_started_make_guide) for more information. Brand new to QMK? Start with our [Complete Newbs Guide](https://docs.qmk.fm/#/newbs).
-
-A build guide for the Kyria can be found at [docs.splitkb.com](https://docs.splitkb.com/hc/en-us/categories/360002241559-Build-Guides). For revision 3.x you want to use the [Aurora build guide](https://docs.splitkb.com/hc/en-us/articles/6269789921564-Aurora-Build-Guide-1-Introduction), for revision 2.x and below you want to use the [Kyria-specific guide](https://docs.splitkb.com/hc/en-us/articles/360010552059-Kyria-Build-Guide-Introduction).
-
-## Proton C Conversion Guide
-
-If you're one of the lucky people to have Proton Cs to use with their Kyria, there are a couple of caveats to getting this working.
-
-1. You need to have 2x Proton Cs, as you cannot mix and match with Pro Micros or Elite C's.  They both need to be Proton Cs.
-2. You'll need to do some modding to enable proper support with the Proton C.
-
-By design, the Kyria uses every available pin on the Pro Micro footprint.  This includes using D3 (RX) for RGB.  This poses a challenge with using the Proton C, since it needs both the TX and RX pins. The Proton C needs both pins, especially if you plan on using Full Duplex Serial. 
-
-To fix this, you need to break off the last header position on the right-hand side on the footprint. This is the `TX0/D3` pad. Leave this pad without a header connected to.
-
-From the A9 pin on the Proton C, you want to run a wire from it to the `SDA + Extra Data` pad near the TRRS jack on the PCB. This will allow for proper, full duplex communication over the TRRS cable. 
-
-To get RGB working properly, as well, you want to run a wire from the `A3` pin on the Proton C, next to the GND and DFU pin, right under the USB port.  Run this to the `TX0/D3` pad (the one you left without a header pin on the PCB).
-
-Once you've done that, you can solder in the Proton C. and flash it.
-
-![Proton C](https://i.imgur.com/nICqWLo.jpg)
+On this machine append `--arg nixpkgs '(import /etc/nixos/npins).nixpkgs'` to
+`nix-build` to use the system's pinned packages. The Nix applet build runs its
+Rust tests using the same vendored libcosmic dependencies as COSMIC. Firmware
+changes also require the rev3/floris build above; hardware checks follow an
+explicitly requested flash.

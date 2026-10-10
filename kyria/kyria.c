@@ -36,13 +36,7 @@ bool oled_task_kb(void) {
 
         oled_write_P(qmk_logo, false);
         oled_write_P(PSTR("Kyria "), false);
-#if defined(KEYBOARD_splitkb_kyria_rev1)
-        oled_write_P(PSTR("rev1\n\n"), false);
-#elif defined(KEYBOARD_splitkb_kyria_rev2)
-        oled_write_P(PSTR("rev2\n\n"), false);
-#elif defined(KEYBOARD_splitkb_kyria_rev3)
         oled_write_P(PSTR("rev3\n\n"), false);
-#endif
         // Host Keyboard Layer Status
         oled_write_P(PSTR("Layer: "), false);
         switch (get_highest_layer(layer_state | default_layer_state)) {
@@ -50,22 +44,25 @@ bool oled_task_kb(void) {
                 oled_write_P(PSTR("QWERTY\n"), false);
                 break;
             case 1:
-                oled_write_P(PSTR("Dvorak\n"), false);
+                oled_write_P(PSTR("Numbers\n"), false);
                 break;
             case 2:
-                oled_write_P(PSTR("Colemak-DH\n"), false);
+                oled_write_P(PSTR("COSMIC\n"), false);
                 break;
             case 3:
                 oled_write_P(PSTR("Nav\n"), false);
                 break;
             case 4:
-                oled_write_P(PSTR("Sym\n"), false);
+                oled_write_P(PSTR("Editor\n"), false);
                 break;
             case 5:
                 oled_write_P(PSTR("Function\n"), false);
                 break;
             case 6:
-                oled_write_P(PSTR("Adjust\n"), false);
+                oled_write_P(PSTR("Settings\n"), false);
+                break;
+            case 7:
+                oled_write_P(PSTR("Spare\n"), false);
                 break;
             default:
                 oled_write_P(PSTR("Undefined\n"), false);
