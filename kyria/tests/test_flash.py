@@ -49,7 +49,18 @@ elif name == 'make':
     shutil.copyfile(root / 'firmware.uf2', checkout / 'splitkb_kyria_rev3_floris_liatris.uf2')
 elif name == 'vitaly':
     action = args[2]
-    if action == 'devices': print('Path: /dev/hidrawFAKE')
+    if action == 'devices':
+        attempts = root / 'device-attempts'
+        number = int(attempts.read_text()) + 1 if attempts.exists() else 1
+        attempts.write_text(str(number))
+        failure = os.environ.get('FLASH_TEST_FAILURE')
+        if failure == 'missing' or (failure == 'delayed' and number == 1):
+            print('No matching devices found', file=sys.stderr)
+        else:
+            output = 'Product name: "Kyria rev3" id: 53060,\nManufacturer name: "splitkb.com", id: 36125,\nRelease: 256, Serial: "vial:f64c2b3c", Path: "/dev/hidraw42"'
+            print(output)
+            if failure == 'duplicate-path': print(output)
+            if failure == 'multiple-devices': print(output.replace('hidraw42', 'hidraw43'))
     elif action == 'lock':
         print('Device is locked: ' + ('true' if os.environ.get('FLASH_TEST_FAILURE') == 'unlock' else 'false'))
     elif action == 'bootload' and os.environ.get('FLASH_TEST_FAILURE') == 'bootload':
@@ -95,11 +106,11 @@ class FlashTests(unittest.TestCase):
             else:
                 arguments += ['--firmware', str(root / 'firmware.uf2')]
             result = subprocess.run(arguments, input=main_half + '\n' + '\n' * 6,
-                                    text=True, capture_output=True, env=env, timeout=15)
+                                    text=True, capture_output=True, env=env, timeout=25)
             if automatic_build and result.returncode == 0:
                 # A second run must reuse the same completed download.
                 result = subprocess.run(arguments, text=True, capture_output=True,
-                                        env=env, timeout=15)
+                                        env=env, timeout=25)
             self.assertFalse(list((root / 'cache/kyria/vial-qmk').glob('.download.*')),
                              'Partial downloads must be removed')
             events = (root / 'events').read_text().splitlines()
@@ -150,6 +161,29 @@ class FlashTests(unittest.TestCase):
                 self.assertFalse(any(e.startswith('cp ') or ' save ' in e or '--user start' in e for e in events))
                 if failure == 'unlock':
                     self.assertFalse(any(' bootload' in e for e in events))
+
+    def test_delayed_device_is_waited_for_before_unlock(self):
+        result, events = self.run_walkthrough('delayed')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        vial = [e.split()[3] for e in events if e.startswith('vitaly ')]
+        self.assertEqual(vial[:3], ['devices', 'devices', 'lock'])
+        self.assertIn('Waiting for the Kyria Vial interface', result.stdout)
+
+    def test_duplicate_path_is_one_device(self):
+        result, events = self.run_walkthrough('duplicate-path')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_multiple_interfaces_are_rejected_before_unlock(self):
+        result, events = self.run_walkthrough('multiple-devices')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Found 2 distinct Kyria Vial interfaces', result.stderr)
+        self.assertFalse(any(' lock ' in e or ' bootload' in e or e.startswith('cp ') for e in events))
+
+    def test_missing_device_has_specific_error(self):
+        result, events = self.run_walkthrough('missing')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('No Kyria Vial interface appeared', result.stderr)
+        self.assertFalse(any(' lock ' in e or ' bootload' in e or e.startswith('cp ') for e in events))
 
     def test_right_main_half_finishes_on_right(self):
         result, events = self.run_walkthrough(main_half='right')

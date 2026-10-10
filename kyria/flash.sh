@@ -217,9 +217,31 @@ print(filesystems[0]["target"])
 ' 2>/dev/null
 }
 
+wait_for_kyria() {
+    local count deadline=$((SECONDS + 15))
+    while :; do
+        vial devices
+        # Count unique raw-HID paths, using Vitaly's quoted output format.
+        count=$(python3 - "$work_dir/vitaly.log" <<'PYCOUNT'
+import re, sys
+with open(sys.argv[1]) as source:
+    paths = set(re.findall(r'Path:\s*"?(/dev/hidraw[0-9]+)', source.read()))
+print(len(paths))
+PYCOUNT
+)
+        case "$count" in
+            1) return ;;
+            0)
+                ((SECONDS < deadline)) || die 'No Kyria Vial interface appeared within 15 seconds. Connect the keyboard in normal firmware mode and check USB/hidraw access. If it is already an RPI-RP2 drive, rerun with --manual-reset.'
+                printf 'Waiting for the Kyria Vial interface to reconnect…\n'
+                sleep 1 ;;
+            *) die "Found $count distinct Kyria Vial interfaces. Connect only one half by USB." ;;
+        esac
+    done
+}
+
 unlock_half() {
-    vial devices
-    [[ $(grep -c 'Path:.*hidraw' "$work_dir/vitaly.log") == 1 ]] || die 'Exactly one Kyria must be connected by USB.'
+    wait_for_kyria
     printf '\nHold T + Y continuously until the CLI reports unlocked (about five seconds).\n'
     vial lock -u
     grep -q 'Device is locked: false' "$work_dir/vitaly.log" || die 'Unlock did not complete. For firmware recovery, rerun with --manual-reset.'
@@ -228,7 +250,7 @@ unlock_half() {
 flash_half() {
     local half=$1 partition mount_point deadline status
     if ((manual_reset)); then
-        prompt "Connect USB to the $half half, leaving the interconnect attached. Double-tap THAT half’s reset button so RPI-RP2 appears."
+        prompt "Connect USB to the $half half, leaving the interconnect attached. Double-tap THAT half’s reset button so RPI-RP2 appears. If the drive is already visible, leave it in bootloader mode."
     else
         prompt "Connect USB to the $half half, leaving the interconnect attached. Wait for the keyboard to reconnect; the CLI will unlock it and enter the bootloader."
         unlock_half

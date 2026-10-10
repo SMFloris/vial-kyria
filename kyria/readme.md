@@ -83,6 +83,10 @@ Both halves are flashed before restoring their layouts. For recovery or
 incompatible firmware on the two halves, run `./flash.sh --manual-reset`:
 it asks you to double-tap each half's reset button and skips Vial until both
 halves have been flashed. Restoration still requires T + Y unlock.
+The script waits up to 15 seconds for the Vial interface after reconnecting.
+If none appears, check the USB connection and hidraw permissions; a half
+already showing `RPI-RP2` needs `--manual-reset` rather than Vial unlock.
+Multiple distinct interfaces produce a separate error.
 Vial commands run sequentially with a 90-second timeout; reported
 errors stop the walkthrough even if the CLI exits successfully. An interrupted
 or failed restoration leaves the lighting service paused; finish restoring,
