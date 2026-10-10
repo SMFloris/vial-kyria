@@ -13,4 +13,5 @@ bool is_keyboard_master(void);
 uint8_t rgb_matrix_get_val(void);
 void rgb_matrix_enable_noeeprom(void);
 void rgb_matrix_mode_noeeprom(uint8_t mode);
+void rgb_matrix_sethsv_noeeprom(uint8_t hue, uint8_t saturation, uint8_t value);
 void rgb_matrix_set_color(int led, uint8_t red, uint8_t green, uint8_t blue);

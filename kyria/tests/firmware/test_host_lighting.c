@@ -24,6 +24,9 @@ bool is_keyboard_master(void) { return true; }
 uint8_t rgb_matrix_get_val(void) { return 128; }
 void rgb_matrix_enable_noeeprom(void) { matrix_enabled = true; }
 void rgb_matrix_mode_noeeprom(uint8_t mode) { assert(mode == RGB_MATRIX_SOLID_COLOR); }
+void rgb_matrix_sethsv_noeeprom(uint8_t hue, uint8_t saturation, uint8_t value) {
+    assert(hue == 0 && saturation == 0 && value == 16);
+}
 void rgb_matrix_set_color(int led, uint8_t red, uint8_t green, uint8_t blue) {
     rendered[led][0] = red;
     rendered[led][1] = green;
@@ -49,8 +52,17 @@ static uint8_t request(uint8_t op) {
     return data[29];
 }
 
+static void assert_white_fallback(void) {
+    rgb_matrix_indicators_advanced_user(0, RGB_MATRIX_LED_COUNT);
+    for (uint8_t led = 0; led < RGB_MATRIX_LED_COUNT; led++) {
+        assert(rendered[led][0] == 16 && rendered[led][1] == 16 && rendered[led][2] == 16);
+    }
+}
+
 int main(void) {
     keyboard_post_init_user();
+    assert(matrix_enabled);
+    assert_white_fallback(); // Keys and underglow are neutral before the first host frame.
     uint8_t status[32] = {HOST_COMMAND, HOST_STATUS};
     status[30] = 99;
     raw_hid_receive_kb(status, sizeof(status));
@@ -69,7 +81,7 @@ int main(void) {
     }
     assert(request(HOST_COMMIT) == 0);
     assert(matrix_enabled);
-    assert(host_lighting_render(0, RGB_MATRIX_LED_COUNT));
+    rgb_matrix_indicators_advanced_user(0, RGB_MATRIX_LED_COUNT);
     assert(rendered[RGB_MATRIX_LED_COUNT - 1][0] == 255 && rendered[RGB_MATRIX_LED_COUNT - 1][2] == RGB_MATRIX_LED_COUNT - 1);
     for (uint8_t i = 0; i < 9; i++) {
         now += 5;
@@ -83,6 +95,7 @@ int main(void) {
     assert(host_lighting_render(25, RGB_MATRIX_LED_COUNT));
     now = 2999;
     assert(!host_lighting_render(25, RGB_MATRIX_LED_COUNT));
+    assert_white_fallback(); // A lost host connection returns to white on both halves.
     assert(request(HOST_HEARTBEAT) == 4);
     housekeeping_task_user();
     assert(sent[sent_count - 1][1] == HOST_RELEASE);
@@ -96,9 +109,6 @@ int main(void) {
     assert(sent[sent_count - 1][1] == HOST_BEGIN);
     assert(request(HOST_RELEASE) == 0);
     assert(!host_lighting_render(0, RGB_MATRIX_LED_COUNT));
-    rgb_matrix_indicators_advanced_user(0, RGB_MATRIX_LED_COUNT);
-    for (uint8_t led = 0; led < RGB_MATRIX_LED_COUNT; led++) {
-        assert(rendered[led][0] == 0 && rendered[led][1] == 0 && rendered[led][2] == 0);
-    }
-    puts("Firmware protocol, split framing, absolute host brightness, and timeout tests passed.");
+    assert_white_fallback();
+    puts("Firmware protocol, split framing, absolute host brightness, and white fallback tests passed.");
 }

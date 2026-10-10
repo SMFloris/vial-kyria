@@ -114,6 +114,10 @@ static void slave_receive(uint8_t in_length, const void *in_data, uint8_t out_le
 }
 
 void keyboard_post_init_user(void) {
+    // Ignore old persisted Vial effects and colors; start with neutral white.
+    rgb_matrix_mode_noeeprom(RGB_MATRIX_SOLID_COLOR);
+    rgb_matrix_sethsv_noeeprom(0, 0, 16);
+    rgb_matrix_enable_noeeprom();
     transaction_register_rpc(KYRIA_HOST_LIGHTING, slave_receive);
 }
 

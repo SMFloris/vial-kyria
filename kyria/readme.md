@@ -11,9 +11,9 @@ This board has 25 left switch LEDs with underglow bypassed, and 31 right LEDs
 | Path | Purpose |
 | --- | --- |
 | `rev3/keymaps/floris/layout.vil` | Saved personal Vial layout: keys, encoders, macros, tap dances, and settings. |
-| `rev3/keymaps/floris/keymap.json` | Factory key/encoder defaults and enabled RGB effects. These differ from the personal Vial layout; restore `layout.vil` after flashing. |
+| `rev3/keymaps/floris/keymap.json` | Factory key/encoder defaults and the sole solid-color RGB effect. These differ from the personal Vial layout; restore `layout.vil` after flashing. |
 | `rev3/keymaps/floris/config.h`, `rules.mk` | Vial identity, unlock keys, layer count, and firmware features. |
-| `rev3/keymaps/floris/rgbrules.c` | Displays host frames; leaves LEDs dark when the host service is absent. |
+| `rev3/keymaps/floris/rgbrules.c` | Displays host frames; uses dim white keys and underglow when the host is absent. |
 | `rev3/keymaps/floris/host_lighting.c`, `.h` | Layer reporting and synchronized RGB frames for both halves. |
 | `rev3/`, `kyria.c`, `info.json`, `rules.mk` | Required QMK hardware definitions and callbacks. |
 | `host/` | Python service, physical LED map, and default colors. |
@@ -178,7 +178,7 @@ your settings; brightness 0 disables a default highlight. Brightness is absolute
 The host uses protocol version 2; update both halves with the matching firmware.
 Default highlights use 255, the subdued key background uses 8, and underglow
 uses 128 to preserve its previous intensity. All layer names and lighting live
-in the host configuration; firmware contains no layer palette.
+in the host configuration; firmware contains only a neutral white fallback, with no layer palette.
 
 | Layer | Name | Default underglow | Useful keys in saved layout |
 | --- | --- | --- | --- |
@@ -202,8 +202,8 @@ badge. Unnamed layers show just their number in the badge. Set
 `layers."3".name = "Navigation"` to show `4: Navigation`; omit `name` or set
 it to `null` for the number without a name. Lighting configuration indices remain 0–7.
 A keyboard icon with a muted dash badge means disconnected, missing, or stale
-status. Stop the service to turn LEDs off; a crash or disconnect leaves them
-dark within 1.5 seconds. Host colors stay in RAM and synchronize to both
+status. Stopping the service restores dim white keys and underglow; a crash or
+disconnect restores the same fallback within 1.5 seconds. Host colors stay in RAM and synchronize to both
 halves. Keep the Vial UID and physical unlock combination unchanged.
 
 ## Update checklist
