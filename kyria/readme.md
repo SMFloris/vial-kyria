@@ -13,7 +13,7 @@ This board has 25 left switch LEDs with underglow bypassed, and 31 right LEDs
 | `rev3/keymaps/floris/layout.vil` | Saved personal Vial layout: keys, encoders, macros, tap dances, and settings. |
 | `rev3/keymaps/floris/keymap.json` | Factory key/encoder defaults and enabled RGB effects. These differ from the personal Vial layout; restore `layout.vil` after flashing. |
 | `rev3/keymaps/floris/config.h`, `rules.mk` | Vial identity, unlock keys, layer count, and firmware features. |
-| `rev3/keymaps/floris/rgbrules.c` | Standalone lighting when the host service is absent. |
+| `rev3/keymaps/floris/rgbrules.c` | Displays host frames; leaves LEDs dark when the host service is absent. |
 | `rev3/keymaps/floris/host_lighting.c`, `.h` | Layer reporting and synchronized RGB frames for both halves. |
 | `rev3/`, `kyria.c`, `info.json`, `rules.mk` | Required QMK hardware definitions and callbacks. |
 | `host/` | Python service, physical LED map, and default colors. |
@@ -173,8 +173,12 @@ Configure `services.kyria-layer.layers."<number>".keys."<key>"` and
 Key names refer to **physical QWERTY positions**, regardless of current outputs.
 `host/led-map.json` lists names and matrix coordinates such as `"5,1"` (H).
 `keys."*"` sets all switch LEDs; specific keys override it. Defaults merge with
-your settings; brightness 0 disables a default highlight. Vial's global RGB
-brightness multiplies the configured brightness, and its RGB toggle still works.
+your settings; brightness 0 disables a default highlight. Brightness is absolute:
+255 sends the configured color unchanged, independently of Vial's RGB settings.
+The host uses protocol version 2; update both halves with the matching firmware.
+Default highlights use 255, the subdued key background uses 8, and underglow
+uses 128 to preserve its previous intensity. All layer names and lighting live
+in the host configuration; firmware contains no layer palette.
 
 | Layer | Name | Default underglow | Useful keys in saved layout |
 | --- | --- | --- | --- |
@@ -193,12 +197,13 @@ Tab sticky, and right-top outer key floating (`Super+Space`).
 The service polls actual layer state every 50 ms and writes an atomic status
 file at `$XDG_RUNTIME_DIR/kyria-layer.json`. The applet uses one-based display
 numbers: firmware layer 0 is shown as 1,
-and layer 7 as 8. Unnamed layers show a numbered keycap icon. Set
+and layer 7 as 8. A keyboard icon always accompanies a rounded, theme-accent
+badge. Unnamed layers show just their number in the badge. Set
 `layers."3".name = "Navigation"` to show `4: Navigation`; omit `name` or set
-it to `null` for just the icon. Lighting configuration indices remain 0–7.
-A keyboard icon means disconnected, missing, or stale status. Stop the service
-to return to built-in lighting; a crash or disconnect restores firmware
-lighting within 1.5 seconds. Host colors stay in RAM and synchronize to both
+it to `null` for the number without a name. Lighting configuration indices remain 0–7.
+A keyboard icon with a muted dash badge means disconnected, missing, or stale
+status. Stop the service to turn LEDs off; a crash or disconnect leaves them
+dark within 1.5 seconds. Host colors stay in RAM and synchronize to both
 halves. Keep the Vial UID and physical unlock combination unchanged.
 
 ## Update checklist

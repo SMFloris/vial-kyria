@@ -14,7 +14,7 @@ import time
 
 COMMAND = 0xF0
 STATUS, DATA, COMMIT, RELEASE, HEARTBEAT, BEGIN = range(6)
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 CHUNK_LEDS = 8
 LOGGER = logging.getLogger("kyria-layer")
 

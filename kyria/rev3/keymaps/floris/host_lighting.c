@@ -5,7 +5,7 @@
 
 // Private raw-HID extension; VIA/Vial still handle their own commands.
 #define HOST_COMMAND 0xF0
-#define HOST_VERSION 1
+#define HOST_VERSION 2
 #define HOST_TIMEOUT_MS 1500
 #define FRAME_CHUNK_LEDS 8
 
@@ -57,6 +57,8 @@ static uint8_t apply_packet(const uint8_t *data) {
                 return 3;
             }
             memcpy(colors, staged, sizeof(colors));
+            rgb_matrix_mode_noeeprom(RGB_MATRIX_SOLID_COLOR);
+            rgb_matrix_enable_noeeprom();
             hosted = true;
             last_heartbeat = timer_read32();
             break;
@@ -168,12 +170,8 @@ bool host_lighting_render(uint8_t led_min, uint8_t led_max) {
     if (!host_active()) {
         return false;
     }
-    uint8_t brightness = rgb_matrix_get_val();
     for (uint8_t led = led_min; led < led_max; led++) {
-        rgb_matrix_set_color(led,
-            (uint16_t)colors[led][0] * brightness / 255,
-            (uint16_t)colors[led][1] * brightness / 255,
-            (uint16_t)colors[led][2] * brightness / 255);
+        rgb_matrix_set_color(led, colors[led][0], colors[led][1], colors[led][2]);
     }
     return true;
 }

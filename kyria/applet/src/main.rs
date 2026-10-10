@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 use cosmic::cosmic_config::{Config, ConfigGet, ConfigSet};
-use cosmic::iced::{Subscription, time};
+use cosmic::iced::{Alignment, Background, Border, Color, Subscription, time};
 use cosmic::prelude::*;
 use serde::Deserialize;
 use std::{path::PathBuf, time::Duration};
@@ -58,16 +58,7 @@ fn read_indicator(path: &std::path::Path) -> Indicator {
     Indicator::Offline
 }
 
-const NUMBER_ICONS: [&[u8]; 8] = [
-    include_bytes!("../assets/layer-1-symbolic.svg"),
-    include_bytes!("../assets/layer-2-symbolic.svg"),
-    include_bytes!("../assets/layer-3-symbolic.svg"),
-    include_bytes!("../assets/layer-4-symbolic.svg"),
-    include_bytes!("../assets/layer-5-symbolic.svg"),
-    include_bytes!("../assets/layer-6-symbolic.svg"),
-    include_bytes!("../assets/layer-7-symbolic.svg"),
-    include_bytes!("../assets/layer-8-symbolic.svg"),
-];
+const KEYBOARD_ICON: &[u8] = include_bytes!("../assets/keyboard-symbolic.svg");
 
 fn add_to_wings(wings: &mut Wings) -> bool {
     if wings.0.iter().chain(&wings.1).any(|id| id == APP_ID) {
@@ -124,16 +115,48 @@ impl cosmic::Application for App {
     fn view(&self) -> Element<'_, Message> {
         let padding = self.core.applet.suggested_padding(true);
         let size = self.core.applet.suggested_size(true).0;
-        let content: Element<'_, Message> = match &self.indicator {
-            Indicator::Named(label) => self.core.applet.text(label.as_str()).into(),
-            Indicator::Number(number) => cosmic::widget::icon::from_svg_bytes(
-                NUMBER_ICONS[usize::from(*number - 1)],
-            ).symbolic(true).icon().size(size).into(),
-            Indicator::Offline => cosmic::widget::icon::from_name("input-keyboard-symbolic")
-                .size(size).icon().into(),
+        let (label, connected) = match &self.indicator {
+            Indicator::Named(label) => (label.clone(), true),
+            Indicator::Number(number) => (number.to_string(), true),
+            Indicator::Offline => ("—".into(), false),
+        };
+        let keyboard = cosmic::widget::icon::from_svg_bytes(KEYBOARD_ICON)
+            .symbolic(true).icon().size(size);
+        let badge = cosmic::widget::container(
+            self.core.applet.text(label).font(cosmic::font::bold()),
+        )
+        .padding([2, 8])
+        .class(cosmic::style::Container::Custom(Box::new(move |theme| {
+            let color: Color = if connected {
+                theme.cosmic().accent_color().into()
+            } else {
+                theme.cosmic().bg_divider().into()
+            };
+            cosmic::widget::container::Style {
+                background: Some(Background::Color(Color { a: 0.14, ..color })),
+                border: Border {
+                    color: Color { a: 0.35, ..color },
+                    width: 1.0,
+                    radius: 8.0.into(),
+                },
+                text_color: connected.then_some(color),
+                ..Default::default()
+            }
+        })));
+        let content: Element<'_, Message> = if self.core.applet.is_horizontal() {
+            cosmic::widget::row([keyboard.into(), badge.into()])
+                .spacing(6).align_y(Alignment::Center).into()
+        } else {
+            cosmic::widget::column([keyboard.into(), badge.into()])
+                .spacing(4).align_x(Alignment::Center).into()
+        };
+        let padding = if self.core.applet.is_horizontal() {
+            [padding.1, padding.0]
+        } else {
+            [padding.0, padding.1]
         };
         let content = cosmic::widget::container(content)
-            .padding([padding.0 as u16, padding.1 as u16]);
+            .padding(padding);
         self.core.applet.autosize_window(content).into()
     }
     fn subscription(&self) -> Subscription<Message> {

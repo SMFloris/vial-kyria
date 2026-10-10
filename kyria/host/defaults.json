@@ -4,12 +4,12 @@
         "keys": {
             "*": {
                 "color": "#005aff",
-                "brightness": 16
+                "brightness": 8
             }
         },
         "underglow": {
             "color": "#005aff",
-            "brightness": 255
+            "brightness": 128
         }
     },
     "1": {
@@ -17,7 +17,7 @@
         "keys": {
             "*": {
                 "color": "#ff9600",
-                "brightness": 16
+                "brightness": 8
             },
             "G": {
                 "color": "#92dce5",
@@ -62,7 +62,7 @@
         },
         "underglow": {
             "color": "#ff9600",
-            "brightness": 255
+            "brightness": 128
         }
     },
     "2": {
@@ -70,7 +70,7 @@
         "keys": {
             "*": {
                 "color": "#b400ff",
-                "brightness": 16
+                "brightness": 8
             },
             "G": {
                 "color": "#92dce5",
@@ -131,7 +131,7 @@
         },
         "underglow": {
             "color": "#b400ff",
-            "brightness": 255
+            "brightness": 128
         }
     },
     "3": {
@@ -139,7 +139,7 @@
         "keys": {
             "*": {
                 "color": "#00ff3c",
-                "brightness": 16
+                "brightness": 8
             },
             "H": {
                 "color": "#4fea55",
@@ -160,7 +160,7 @@
         },
         "underglow": {
             "color": "#00ff3c",
-            "brightness": 255
+            "brightness": 128
         }
     },
     "4": {
@@ -168,12 +168,12 @@
         "keys": {
             "*": {
                 "color": "#00ffff",
-                "brightness": 16
+                "brightness": 8
             }
         },
         "underglow": {
             "color": "#00ffff",
-            "brightness": 255
+            "brightness": 128
         }
     },
     "5": {
@@ -181,12 +181,12 @@
         "keys": {
             "*": {
                 "color": "#ff0000",
-                "brightness": 16
+                "brightness": 8
             }
         },
         "underglow": {
             "color": "#ff0000",
-            "brightness": 255
+            "brightness": 128
         }
     },
     "6": {
@@ -194,12 +194,12 @@
         "keys": {
             "*": {
                 "color": "#ffffff",
-                "brightness": 16
+                "brightness": 8
             }
         },
         "underglow": {
             "color": "#ffffff",
-            "brightness": 255
+            "brightness": 128
         }
     },
     "7": {
@@ -207,12 +207,12 @@
         "keys": {
             "*": {
                 "color": "#ff0078",
-                "brightness": 16
+                "brightness": 8
             }
         },
         "underglow": {
             "color": "#ff0078",
-            "brightness": 255
+            "brightness": 128
         }
     }
 }

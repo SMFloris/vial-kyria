@@ -95,7 +95,7 @@ class ProtocolTests(unittest.TestCase):
     def test_unrelated_hid_replies_are_ignored(self):
         keyboard = self.keyboard()
         reply = bytearray(32)
-        reply[:5] = bytes((host.COMMAND, host.STATUS, 1, LED_MAP["ledCount"], 3))
+        reply[:5] = bytes((host.COMMAND, host.STATUS, host.PROTOCOL_VERSION, LED_MAP["ledCount"], 3))
         reply[8:12] = struct.pack("<I", 8)
         reply[12:16] = struct.pack("<I", 1)
         reply[16:20] = b"KYR1"
@@ -119,6 +119,15 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(len(calls), 9)
         reconstructed = b"".join(call.args[1][2:] for call in calls[1:-1])
         self.assertEqual(reconstructed, b"".join(frame))
+
+    def test_old_firmware_with_global_brightness_scaling_is_rejected(self):
+        keyboard = self.keyboard()
+        reply = bytearray(32)
+        reply[2] = 1
+        reply[16:20] = b"KYR1"
+        with patch.object(keyboard, "request", return_value=reply):
+            with self.assertRaisesRegex(host.ProtocolError, "Unsupported host-lighting protocol"):
+                keyboard.status()
 
 
 if __name__ == "__main__":

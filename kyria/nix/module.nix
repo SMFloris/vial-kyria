@@ -14,7 +14,7 @@ let
       brightness = lib.mkOption {
         type = lib.types.ints.between 0 255;
         default = 255;
-        description = "Brightness from 0 to 255, multiplied by Vial's global brightness.";
+        description = "Absolute LED brightness from 0 to 255, controlled by the host independently of Vial.";
       };
     };
   };
@@ -23,7 +23,7 @@ let
       name = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        description = "Optional layer name. Null shows a numbered icon; a name shows number: name (1–8).";
+        description = "Optional layer name. The keyboard icon's badge shows a number (1–8), or number: name.";
       };
       keys = lib.mkOption {
         type = lib.types.attrsOf styleType;
